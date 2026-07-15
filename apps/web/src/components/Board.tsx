@@ -1,6 +1,9 @@
 import { BOARD, type GameState, type StreetSpace } from '@monopoly/game';
 import type { CSSProperties } from 'react';
+import { SpaceIcon } from './SpaceIcon';
 import { TokenIcon } from './TokenIcon';
+
+const ICON_SPACES = ['jail', 'go-to-jail', 'chance', 'community-chest'];
 
 const colors: Record<string, string> = { brown: '#8b5a3c', 'light-blue': '#63b8d5', pink: '#cf5b9d', orange: '#e98a32', red: '#c9423b', yellow: '#e0bd3d', green: '#438d64', 'dark-blue': '#315b92' };
 function coordinates(index: number) {
@@ -26,6 +29,7 @@ export function Board({ state, selectedIndex, onSelect }: { state: GameState; se
         aria-label={`${space.name}${property?.ownerId ? ', owned' : ''}`}
       >
         {space.type === 'street' ? <span className="property-band" /> : null}
+        {ICON_SPACES.includes(space.type) ? <span className="space-icon"><SpaceIcon type={space.type} /></span> : null}
         <span className="space-name">{shortName(space.name)}</span>
         {property?.buildings ? <span className="buildings">{property.buildings === 5 ? '◆' : '▪'.repeat(property.buildings)}</span> : null}
         <span className="space-tokens">{players.map((player) => <span key={player.id} className={`token token-${state.players.indexOf(player) + 1}`} aria-label={`${player.name} on ${space.name}`}><TokenIcon token={player.token} size={12} /></span>)}</span>

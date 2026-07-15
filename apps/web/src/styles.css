@@ -108,4 +108,19 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .reconnect-sheet { position:fixed; z-index:25; right:0; bottom:0; left:0; width:min(100%,540px); margin:auto; padding:24px 24px calc(24px + env(safe-area-inset-bottom)); border-radius:20px 20px 0 0; background:var(--paper); text-align:center; box-shadow:0 -12px 40px rgba(23,37,31,.2); }.reconnect-sheet .spinner{margin:auto}.reconnect-sheet h2{margin:12px 0 6px}.reconnect-sheet p{color:#617068;font-size:.85rem;}
 @media (min-width:700px){.game-shell{padding-top:24px}.board-space{font-size:.54rem}.landing-shell{padding-top:36px}}
 @media (orientation:landscape) and (max-height:600px){.game-shell{display:grid;grid-template-columns:min(56vh,48%) 1fr;grid-template-rows:auto 1fr;gap:10px;max-width:980px}.status-rail{grid-column:1/-1}.board{grid-column:1}.turn-card,.tab-panel{grid-column:2;grid-row:2;margin-top:0;align-self:start}.bottom-nav{left:auto;width:50%}}
+.space-icon { display: block; margin-bottom: 1px; line-height: 0; color: #3c5348; }
+.space-icon svg { width: clamp(9px, 3.2vw, 14px); height: auto; }
+.dice-line { margin-bottom: 8px; }
+.dice-row { display: inline-flex; gap: 8px; vertical-align: middle; }
+.die { display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); gap: 2px; width: 34px; height: 34px; padding: 5px; border: 1.5px solid #1d3128; border-radius: 7px; background: #fffaf0; box-shadow: 2px 2px 0 rgba(29,49,40,.35); }
+.die i { border-radius: 50%; }
+.die .pip { background: #17251f; }
+.die.is-rolling { animation: dice-tumble .6s cubic-bezier(.3,1.4,.5,1) both; }
+@keyframes dice-tumble { 0% { transform: translateY(-14px) rotate(-160deg) scale(.7); opacity: 0; } 60% { transform: translateY(3px) rotate(12deg) scale(1.05); opacity: 1; } 100% { transform: translateY(0) rotate(0) scale(1); } }
+.card-sheet h2 { font-size: 1.9rem; }
+.card-sheet .card-detail { margin: 0 0 18px; color: #4a5a53; font-size: 1rem; line-height: 1.45; }
+.card-sheet .primary-button { width: 100%; }
+.card-band-chance { background: #d98e3c; }
+.card-band-community-chest { background: #4f8dbb; }
+@media (min-width:700px){ .space-icon svg { width: 14px; } }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}

@@ -162,6 +162,45 @@ describe('authoritative game reducer', () => {
     expect(game.phase).toMatchObject({ type: 'purchase', spaceIndex: 13 });
   });
 
+  it('publishes the drawn card in the snapshot when landing on Chance', () => {
+    let game = createGame(players, { mode: 'official' }, () => 0);
+    game.chanceDeck = ['ch-dividend', ...game.chanceDeck.filter((id) => id !== 'ch-dividend')];
+    const revisionAtDraw = game.revision;
+    game = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [3, 4] }, () => 0);
+    expect(game.lastCard).toEqual({ drawId: `${revisionAtDraw}:ch-dividend`, cardId: 'ch-dividend', deck: 'chance', playerId: 'p1' });
+    expect(game.players[0]!.cash).toBe(1550);
+    expect(game.phase).toEqual({ type: 'awaiting-end' });
+    game = reduceGame(game, { type: 'END_TURN', playerId: 'p1' }, () => 0);
+    expect(game.lastCard).toBeNull();
+  });
+
+  it('clears the drawn card when doubles let the same player roll again', () => {
+    let game = createGame(players, { mode: 'official' }, () => 0);
+    game.communityChestDeck = ['cc-lunch', ...game.communityChestDeck.filter((id) => id !== 'cc-lunch')];
+    game = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [1, 1] }, () => 0);
+    expect(game.lastCard).toMatchObject({ cardId: 'cc-lunch', deck: 'community-chest', playerId: 'p1' });
+    game = reduceGame(game, { type: 'END_TURN', playerId: 'p1' }, () => 0);
+    expect(game.phase).toEqual({ type: 'awaiting-roll' });
+    expect(game.currentPlayerId).toBe('p1');
+    expect(game.lastCard).toBeNull();
+  });
+
+  it('reveals a Get Out of Jail Free draw while the card leaves the deck', () => {
+    let game = createGame(players, { mode: 'official' }, () => 0);
+    game.chanceDeck = ['ch-jail-free', ...game.chanceDeck.filter((id) => id !== 'ch-jail-free')];
+    game = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [3, 4] }, () => 0);
+    expect(game.lastCard).toMatchObject({ cardId: 'ch-jail-free', deck: 'chance' });
+    expect(game.players[0]!.jailFreeCards).toContain('ch-jail-free');
+    expect(game.chanceDeck).not.toContain('ch-jail-free');
+    expect(game.heldCardIds).toContain('ch-jail-free');
+  });
+
+  it('leaves the drawn card empty when landing on ordinary spaces', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
+    expect(next.lastCard).toBeNull();
+  });
+
   it('rejects malformed trade values and fractional auction bids', () => {
     let game = createGame(players, { mode: 'official' }, () => 0);
     const badOffer = { id: 'bad', fromPlayerId: 'p1', toPlayerId: 'p2', offeredCash: -50, requestedCash: 0, offeredProperties: [], requestedProperties: [], offeredJailCards: [], requestedJailCards: [] };

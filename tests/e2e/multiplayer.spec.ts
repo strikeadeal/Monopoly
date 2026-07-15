@@ -44,6 +44,12 @@ test('two isolated phones create, join, start, and recover the same room', async
   await host.getByRole('button', { name: 'ROLL ◆ ◆' }).click();
   await expect(host.getByRole('button', { name: 'ROLL ◆ ◆' })).not.toBeVisible();
   await expect(guest.getByText('Alex · playing')).toBeVisible();
+  await expect(host.locator('.die')).toHaveCount(2);
+  await expect(guest.locator('.die')).toHaveCount(2);
+  for (const page of [host, guest]) {
+    const cardClose = page.getByRole('button', { name: 'Close card' });
+    if (await cardClose.isVisible().catch(() => false)) await cardClose.click();
+  }
 
   await host.reload();
   await expect(host.getByLabel('Monopoly board')).toBeVisible();
