@@ -74,11 +74,18 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .space-name { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .space-tokens { position: absolute; right: 1px; bottom: 1px; display: flex; }
 .token { display: grid; place-items: center; width: 14px; height: 14px; margin-left: -3px; border: 1px solid white; border-radius: 50%; color: white; background: #2f6f59; }
+.token.is-step { animation: token-hop 140ms cubic-bezier(.2,.85,.4,1) both; }
+.token.is-direct-out { animation: token-lift 140ms ease-in both; }
+.token.is-direct-in { animation: token-drop 220ms cubic-bezier(.2,1.4,.45,1) both; }
+@keyframes token-hop { 0% { transform: translateY(1px) scale(.92); } 52% { transform: translateY(-7px) scale(1.12); filter: drop-shadow(0 4px 2px rgba(23,37,31,.3)); } 100% { transform: translateY(0) scale(1); } }
+@keyframes token-lift { to { transform: translateY(-9px) scale(.72); opacity: 0; } }
+@keyframes token-drop { 0% { transform: translateY(-12px) scale(.72); opacity: 0; } 70% { transform: translateY(2px) scale(1.12); opacity: 1; } 100% { transform: translateY(0) scale(1); } }
 .token-2 { background: #b8433c; }.token-3 { background: #315b92; }.token-4 { background: #a8752c; }.token-5 { background: #7a4f83; }.token-6 { background: #2e2e2e; }
 .buildings { position: absolute; left: 1px; bottom: 0; color: #287350; font-size: .5rem; }
 .turn-card, .tab-panel { margin-top: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: 0 10px 28px rgba(38,56,47,.12); }
 .turn-card h2 { margin-bottom: 7px; font-size: 1.6rem; line-height: 1.05; }
 .turn-card p { color: #596961; font-size: .88rem; line-height: 1.4; }
+.movement-card { border-color: rgba(47,111,89,.5); background: linear-gradient(135deg, #f8f1df, #e4eee7); }
 .roll-button { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 58px; padding: 0 18px; border-color: #17251f; background: #17251f; color: white; }
 .roll-button i { color: #dfc274; font-style: normal; letter-spacing: .4em; }
 .action-row, .bid-controls, .deed-actions { display: flex; gap: 8px; }
@@ -105,6 +112,7 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .trade-money { display:grid; grid-template-columns:1fr 1fr; gap:10px; }.trade-properties { display:grid; gap:8px; margin-bottom:15px; }.trade-properties label { display:flex; grid-template-columns:none; align-items:center; gap:8px; margin:0; }.trade-properties input { width:20px; min-height:20px; }
 .activity-list { margin:0; padding:0; list-style:none; }.activity-list li { display:grid; grid-template-columns:60px 1fr; gap:8px; padding:10px 0; border-bottom:1px solid var(--line); font-size:.83rem; }.activity-list time { color:#758179; }.activity-list .money span { color:#2e7658; }.activity-list .warning span { color:#9a302b; }
 .toast { position:fixed; z-index:30; top:calc(10px + env(safe-area-inset-top)); left:50%; display:flex; align-items:center; gap:8px; width:min(calc(100% - 24px),500px); padding:10px 12px; transform:translateX(-50%); border-radius:12px; background:#8e302c; color:white; box-shadow:0 8px 26px rgba(0,0,0,.2); }.toast span{flex:1}.toast button{border:0;background:transparent;color:white;font-size:1.2rem;}
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .reconnect-sheet { position:fixed; z-index:25; right:0; bottom:0; left:0; width:min(100%,540px); margin:auto; padding:24px 24px calc(24px + env(safe-area-inset-bottom)); border-radius:20px 20px 0 0; background:var(--paper); text-align:center; box-shadow:0 -12px 40px rgba(23,37,31,.2); }.reconnect-sheet .spinner{margin:auto}.reconnect-sheet h2{margin:12px 0 6px}.reconnect-sheet p{color:#617068;font-size:.85rem;}
 @media (min-width:700px){.game-shell{padding-top:24px}.board-space{font-size:.54rem}.landing-shell{padding-top:36px}}
 @media (orientation:landscape) and (max-height:600px){.game-shell{display:grid;grid-template-columns:min(56vh,48%) 1fr;grid-template-rows:auto 1fr;gap:10px;max-width:980px}.status-rail{grid-column:1/-1}.board{grid-column:1}.turn-card,.tab-panel{grid-column:2;grid-row:2;margin-top:0;align-self:start}.bottom-nav{left:auto;width:50%}}

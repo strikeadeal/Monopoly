@@ -37,6 +37,14 @@ const ownsGroup = (game: GameState, ownerId: string, color: StreetSpace['color']
   const group = BOARD.filter((space): space is StreetSpace => space.type === 'street' && space.color === color);
   return group.every((space) => game.properties[space.index]?.ownerId === ownerId);
 };
+const relativePath = (start: number, spaces: number) => Array.from(
+  { length: Math.abs(spaces) },
+  (_, index) => (start + Math.sign(spaces) * (index + 1) + 40) % 40
+);
+const clockwisePath = (start: number, destination: number) => relativePath(start, (destination - start + 40) % 40);
+const addStepMovement = (game: GameState, positions: number[]) => {
+  if (positions.length && game.lastMovement) game.lastMovement.segments.push({ kind: 'steps', reason: 'card', positions });
+};
 
 export function createGame(players: PlayerSeed[], settings: GameSettings, random: RandomSource = Math.random, startedAt = now()): GameState {
   if (players.length < 2 || players.length > 6) throw new Error('games require 2–6 players');
@@ -47,7 +55,7 @@ export function createGame(players: PlayerSeed[], settings: GameSettings, random
     revision: 0, status: 'playing', hostPlayerId: players[0]!.id, players: statePlayers, settings,
     phase: { type: 'awaiting-roll' }, currentPlayerId: players[0]!.id, turnOrder: players.map((player) => player.id), turnIndex: 0, round: 1,
     timerEndsAt: settings.mode === 'quick' ? startedAt + (settings.durationMinutes ?? 60) * 60_000 : null, timerExpired: false,
-    lastRoll: null, rolledDoubles: false, lastCard: null,
+    lastRoll: null, rolledDoubles: false, lastCard: null, lastMovement: null,
     properties: Object.fromEntries(PROPERTY_SPACES.map((space) => [space.index, { ownerId: null, mortgaged: false, buildings: 0 } satisfies PropertyState])),
     bankHouses: 32, bankHotels: 12,
     chanceDeck: shuffled(CHANCE_CARDS.map((card) => card.id), random), communityChestDeck: shuffled(COMMUNITY_CHEST_CARDS.map((card) => card.id), random), heldCardIds: [],
@@ -65,16 +73,18 @@ export function createLobby(host: PlayerSeed, settings: GameSettings, createdAt 
   return base;
 }
 
-function movePlayer(game: GameState, player: PlayerState, destination: number, collectGo: boolean, rentMultiplier = 1, random: RandomSource = Math.random) {
+function movePlayer(game: GameState, player: PlayerState, destination: number, collectGo: boolean, rentMultiplier = 1, random: RandomSource = Math.random, movementPath: number[] = []) {
   if (collectGo && destination <= player.position && destination !== player.position) {
     player.cash += 200;
     addActivity(game, `${player.name} passed GO and collected $200.`, 'money');
   }
+  addStepMovement(game, movementPath);
   player.position = destination;
   resolveSpace(game, player, rentMultiplier, random);
 }
 
 function sendToJail(game: GameState, player: PlayerState) {
+  if (game.lastMovement) game.lastMovement.segments.push({ kind: 'direct', reason: 'jail', destination: 10 });
   player.position = 10;
   player.inJail = true;
   player.jailTurns = 0;
@@ -120,6 +130,7 @@ function drawCard(game: GameState, player: PlayerState, deckName: 'chance' | 'co
   if (!card) throw new Error('unknown card');
   addActivity(game, `${player.name} drew “${card.title}” — ${card.detail}`);
   game.lastCard = { drawId: `${game.revision}:${card.id}`, cardId: card.id, deck: card.deck, playerId: player.id };
+  if (game.lastMovement && game.lastMovement.segments.length) game.lastMovement.pauseForCardAfterSegment = game.lastMovement.segments.length - 1;
   applyCard(game, player, card, random);
   if (card.effect.type !== 'jail-free') deck.push(id);
 }
@@ -136,13 +147,14 @@ function applyCard(game: GameState, player: PlayerState, card: GameCard, random:
       if (game.phase.type === 'debt') break;
     }
   } else if (effect.type === 'move-to') {
-    movePlayer(game, player, effect.index, effect.collectGo, 1, random);
+    movePlayer(game, player, effect.index, effect.collectGo, 1, random, clockwisePath(player.position, effect.index));
   } else if (effect.type === 'move-relative') {
-    movePlayer(game, player, (player.position + effect.spaces + 40) % 40, false, 1, random);
+    const path = relativePath(player.position, effect.spaces);
+    movePlayer(game, player, path.at(-1) ?? player.position, false, 1, random, path);
   } else if (effect.type === 'move-nearest') {
     let destination = (player.position + 1) % 40;
     while (BOARD[destination]?.type !== effect.kind) destination = (destination + 1) % 40;
-    movePlayer(game, player, destination, destination <= player.position, effect.rentMultiplier, random);
+    movePlayer(game, player, destination, destination <= player.position, effect.rentMultiplier, random, clockwisePath(player.position, destination));
   } else if (effect.type === 'repairs') {
     const owned = Object.entries(game.properties).filter(([, property]) => property.ownerId === player.id);
     const amount = owned.reduce((sum, [, property]) => sum + (property.buildings === 5 ? effect.hotel : property.buildings * effect.house), 0);
@@ -195,6 +207,7 @@ function nextTurn(game: GameState) {
   game.currentPlayerId = game.turnOrder[next]!;
   game.lastRoll = null;
   game.lastCard = null;
+  game.lastMovement = null;
   game.rolledDoubles = false;
   game.phase = { type: 'awaiting-roll' };
 }
@@ -299,6 +312,10 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       const dice = command.dice ?? roll(random);
       game.lastRoll = dice;
       game.lastCard = null;
+      game.lastMovement = {
+        id: `${game.revision + 1}:${player.id}:roll`, playerId: player.id, startPosition: player.position,
+        segments: [], pauseForCardAfterSegment: null
+      };
       const doubles = dice[0] === dice[1];
       if (player.inJail) {
         if (!doubles) {
@@ -316,6 +333,7 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       const oldPosition = player.position;
       const destination = (oldPosition + total) % 40;
       if (destination < oldPosition) { player.cash += 200; addActivity(game, `${player.name} passed GO and collected $200.`, 'money'); }
+      game.lastMovement.segments.push({ kind: 'steps', reason: 'roll', positions: relativePath(oldPosition, total) });
       player.position = destination;
       addActivity(game, `${player.name} rolled ${dice[0]} + ${dice[1]} and landed on ${BOARD[destination]!.name}.`);
       resolveSpace(game, player, 1, random);
@@ -359,7 +377,7 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       ensureTurn(game, command.playerId);
       if (game.phase.type !== 'awaiting-end') throw new Error('turn cannot end now');
       const current = playerById(game, command.playerId);
-      if (game.rolledDoubles && !current.inJail) { game.phase = { type: 'awaiting-roll' }; game.lastRoll = null; game.lastCard = null; }
+      if (game.rolledDoubles && !current.inJail) { game.phase = { type: 'awaiting-roll' }; game.lastRoll = null; game.lastCard = null; game.lastMovement = null; }
       else nextTurn(game);
       if (game.timerExpired && game.turnIndex === 0) finishTimed(game, random);
       break;
@@ -493,6 +511,7 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       break;
     }
   }
+  if (command.type === 'ROLL' && game.lastMovement?.segments.length === 0) game.lastMovement = null;
   game.revision += 1;
   return game;
 }

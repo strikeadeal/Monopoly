@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
-import { BOARD, createGame } from '@monopoly/game';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BOARD, createGame, reduceGame } from '@monopoly/game';
 import { Board } from './components/Board';
 import { GameScreen } from './components/GameScreen';
 import { Landing } from './components/Landing';
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 const makeState = () => createGame([
   { id: 'p1', name: 'Alex', token: 'rocket' },
@@ -39,6 +39,109 @@ describe('mobile game UI', () => {
     expect(screen.getByRole('img', { name: 'Rolled 3 and 4' })).toBeInTheDocument();
     expect(container.querySelectorAll('.die')).toHaveLength(2);
     expect(container.querySelector('.die.is-rolling')).toBeNull();
+  });
+
+  it('does not replay a completed movement trace on a fresh mount', () => {
+    const initial = makeState();
+    const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
+    render(<GameScreen state={state} {...screenProps} />);
+    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.queryByText('Alex is moving…')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
+  });
+
+  it('walks through every rolled square before revealing landing controls', async () => {
+    vi.useFakeTimers();
+    const initial = makeState();
+    const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
+    const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
+    rerender(<GameScreen state={state} {...screenProps} />);
+
+    expect(screen.getByText('Alex is moving…')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on GO')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull();
+
+    await act(async () => vi.advanceTimersByTimeAsync(600));
+    expect(screen.getByLabelText('Alex on Mediterranean Avenue')).toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(140));
+    expect(screen.getByLabelText('Alex on Community Chest')).toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(140));
+    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(140));
+    expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
+  });
+
+  it('pauses on a card square and resumes card movement after dismissal', async () => {
+    vi.useFakeTimers();
+    const initial = makeState();
+    initial.chanceDeck = ['ch-back-3', ...initial.chanceDeck.filter((id) => id !== 'ch-back-3')];
+    const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
+    const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [3, 4] }, () => 0);
+    rerender(<GameScreen state={state} {...screenProps} />);
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_580));
+    expect(screen.getByLabelText('Alex on Chance')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'A small detour card' })).toBeInTheDocument();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Got it' })); });
+    expect(screen.getByLabelText('Alex on Oriental Avenue')).toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(420));
+    expect(screen.getByLabelText('Alex on Income Tax')).toBeInTheDocument();
+    expect(screen.getByText('You rolled 3 + 4.')).toBeInTheDocument();
+  });
+
+  it('uses a lift and drop when moving directly to Jail', async () => {
+    vi.useFakeTimers();
+    const initial = makeState();
+    initial.players[0]!.position = 28;
+    const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
+    const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 1] }, () => 0);
+    rerender(<GameScreen state={state} {...screenProps} />);
+
+    await act(async () => vi.advanceTimersByTimeAsync(880));
+    expect(screen.getByLabelText('Alex on Go To Jail')).toHaveClass('is-direct-out');
+    await act(async () => vi.advanceTimersByTimeAsync(140));
+    expect(screen.getByLabelText('Alex on Jail / Just Visiting')).toHaveClass('is-direct-in');
+    await act(async () => vi.advanceTimersByTimeAsync(220));
+    expect(screen.getByRole('button', { name: 'End turn' })).toBeInTheDocument();
+  });
+
+  it('skips movement delays when reduced motion is requested', () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    const initial = makeState();
+    const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
+    const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
+    rerender(<GameScreen state={state} {...screenProps} />);
+    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.queryByText('Alex is moving…')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('fast-forwards to the authoritative position when a trace is cleared', () => {
+    vi.useFakeTimers();
+    const initial = makeState();
+    const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
+    const moving = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
+    rerender(<GameScreen state={moving} {...screenProps} />);
+    expect(screen.getByLabelText('Alex on GO')).toBeInTheDocument();
+    const superseding = structuredClone(moving);
+    superseding.lastMovement = null;
+    rerender(<GameScreen state={superseding} {...screenProps} />);
+    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
+  });
+
+  it('rejects a malformed trace that skips an intermediate square', () => {
+    const initial = makeState();
+    const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
+    const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
+    state.lastMovement!.segments = [{ kind: 'steps', reason: 'roll', positions: [2, 3] }];
+    rerender(<GameScreen state={state} {...screenProps} />);
+    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.queryByText('Alex is moving…')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
   });
 
   it('reveals a drawn card to the table and dismisses it locally', () => {

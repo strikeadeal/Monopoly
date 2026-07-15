@@ -62,6 +62,87 @@ describe('authoritative game reducer', () => {
     expect(next.phase).toEqual({ type: 'purchase', spaceIndex: 3, playerId: 'p1' });
   });
 
+  it('publishes every visited square for normal and wrapping rolls', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.players[0]!.position = 38;
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
+    expect(next.lastMovement).toEqual({
+      id: '1:p1:roll',
+      playerId: 'p1',
+      startPosition: 38,
+      segments: [{ kind: 'steps', reason: 'roll', positions: [39, 0, 1] }],
+      pauseForCardAfterSegment: null
+    });
+  });
+
+  it('publishes all twelve squares for a maximum roll', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [6, 6] }, () => 0);
+    expect(next.lastMovement?.segments).toEqual([
+      { kind: 'steps', reason: 'roll', positions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] }
+    ]);
+  });
+
+  it('records the roll, card pause, and reverse card movement in order', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.chanceDeck = ['ch-back-3', ...game.chanceDeck.filter((id) => id !== 'ch-back-3')];
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [3, 4] }, () => 0);
+    expect(next.lastMovement).toMatchObject({
+      startPosition: 0,
+      segments: [
+        { kind: 'steps', reason: 'roll', positions: [1, 2, 3, 4, 5, 6, 7] },
+        { kind: 'steps', reason: 'card', positions: [6, 5, 4] }
+      ],
+      pauseForCardAfterSegment: 0
+    });
+  });
+
+  it('records forward movement to the nearest railroad after a Chance draw', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.chanceDeck = ['ch-rail-1', ...game.chanceDeck.filter((id) => id !== 'ch-rail-1')];
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [3, 4] }, () => 0);
+    expect(next.lastMovement?.segments[1]).toEqual({
+      kind: 'steps', reason: 'card', positions: [8, 9, 10, 11, 12, 13, 14, 15]
+    });
+    expect(next.lastMovement?.pauseForCardAfterSegment).toBe(0);
+  });
+
+  it('records a direct Jail transfer after reaching Go to Jail', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.players[0]!.position = 28;
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [1, 1] }, () => 0);
+    expect(next.lastMovement?.segments).toEqual([
+      { kind: 'steps', reason: 'roll', positions: [29, 30] },
+      { kind: 'direct', reason: 'jail', destination: 10 }
+    ]);
+  });
+
+  it('records only a direct Jail transfer on the third consecutive double', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    Object.assign(game.players[0]!, { position: 5, doublesStreak: 2 });
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [2, 2] }, () => 0);
+    expect(next.lastMovement).toMatchObject({
+      startPosition: 5,
+      segments: [{ kind: 'direct', reason: 'jail', destination: 10 }]
+    });
+  });
+
+  it('does not publish movement for a failed Jail roll', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    Object.assign(game.players[0]!, { position: 10, inJail: true });
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
+    expect(next.lastMovement).toBeNull();
+  });
+
+  it('walks forward from Jail after rolling doubles', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    Object.assign(game.players[0]!, { position: 10, inJail: true });
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [2, 2] }, () => 0);
+    expect(next.lastMovement?.segments).toEqual([
+      { kind: 'steps', reason: 'roll', positions: [11, 12, 13, 14] }
+    ]);
+  });
+
   it('buys a property and automatically charges its rent', () => {
     let game = createGame(players, { mode: 'official' }, () => 0);
     game = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
