@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "monopoly-game-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [{ "name": "GAME_ROOMS", "class_name": "GameRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }],
+  "vars": {
+    "ALLOWED_ORIGIN": "https://strikeadeal.github.io",
+    "DEPLOY_VERSION": "development"
+  }
+}
