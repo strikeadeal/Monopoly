@@ -1,0 +1,33 @@
+{
+  "name": "monopoly-party",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @monopoly/game && npm run build --workspace @monopoly/web && npm run build --workspace @monopoly/worker",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint . --max-warnings=0",
+    "validate:pwa": "node scripts/validate-pwa.mjs",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build --workspace @monopoly/game && npm run build --workspace @monopoly/web && npm run validate:pwa && npm run build --workspace @monopoly/worker"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.1.1",
+    "eslint": "latest",
+    "globals": "latest",
+    "typescript": "latest",
+    "typescript-eslint": "latest",
+    "vitest": "latest"
+  }
+}
