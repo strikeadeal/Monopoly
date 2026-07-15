@@ -46,7 +46,10 @@ export class RoomSession {
 
   execute(envelope: CommandEnvelope): CommandResult {
     const prior = this.results.get(envelope.commandId);
-    if (prior) return structuredClone(prior);
+    if (prior) {
+      if (prior.ok) return { ...structuredClone(prior), state: structuredClone(this.state) };
+      return structuredClone(prior);
+    }
     if (envelope.protocolVersion !== PROTOCOL_VERSION) {
       return { ok: false, commandId: envelope.commandId, code: 'PROTOCOL_MISMATCH', message: `Protocol ${PROTOCOL_VERSION} is required.` };
     }

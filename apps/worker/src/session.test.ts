@@ -20,6 +20,21 @@ describe('RoomSession', () => {
     expect(session.state.revision).toBe(1);
   });
 
+  it('does not roll state back when an older successful command is replayed', () => {
+    const session = new RoomSession(state);
+    const first = session.execute({ protocolVersion: PROTOCOL_VERSION, commandId: 'first-command', expectedRevision: 0, type: 'SET_READY', payload: { playerId: 'p1', ready: false } });
+    expect(first.ok).toBe(true);
+    const second = session.execute({ protocolVersion: PROTOCOL_VERSION, commandId: 'second-command', expectedRevision: 1, type: 'SET_READY', payload: { playerId: 'p1', ready: true } });
+    expect(second.ok).toBe(true);
+
+    const replay = session.execute({ protocolVersion: PROTOCOL_VERSION, commandId: 'first-command', expectedRevision: 0, type: 'SET_READY', payload: { playerId: 'p1', ready: false } });
+
+    expect(replay.ok).toBe(true);
+    expect(replay.ok && replay.state.revision).toBe(second.ok ? second.state.revision : -1);
+    expect(replay.ok && replay.state.players[0]?.ready).toBe(true);
+    expect(session.state.players[0]?.ready).toBe(true);
+  });
+
   it('rejects a mismatched protocol without changing state', () => {
     const session = new RoomSession(state);
     const result = session.execute({ protocolVersion: 99, commandId: 'bad', expectedRevision: 0, type: 'SET_READY', payload: { playerId: 'p1', ready: true } });
