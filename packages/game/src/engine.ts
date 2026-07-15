@@ -47,7 +47,7 @@ export function createGame(players: PlayerSeed[], settings: GameSettings, random
     revision: 0, status: 'playing', hostPlayerId: players[0]!.id, players: statePlayers, settings,
     phase: { type: 'awaiting-roll' }, currentPlayerId: players[0]!.id, turnOrder: players.map((player) => player.id), turnIndex: 0, round: 1,
     timerEndsAt: settings.mode === 'quick' ? startedAt + (settings.durationMinutes ?? 60) * 60_000 : null, timerExpired: false,
-    lastRoll: null, rolledDoubles: false,
+    lastRoll: null, rolledDoubles: false, lastCard: null,
     properties: Object.fromEntries(PROPERTY_SPACES.map((space) => [space.index, { ownerId: null, mortgaged: false, buildings: 0 } satisfies PropertyState])),
     bankHouses: 32, bankHotels: 12,
     chanceDeck: shuffled(CHANCE_CARDS.map((card) => card.id), random), communityChestDeck: shuffled(COMMUNITY_CHEST_CARDS.map((card) => card.id), random), heldCardIds: [],
@@ -119,6 +119,7 @@ function drawCard(game: GameState, player: PlayerState, deckName: 'chance' | 'co
   const card = CARD_BY_ID.get(id);
   if (!card) throw new Error('unknown card');
   addActivity(game, `${player.name} drew “${card.title}” — ${card.detail}`);
+  game.lastCard = { drawId: `${game.revision}:${card.id}`, cardId: card.id, deck: card.deck, playerId: player.id };
   applyCard(game, player, card, random);
   if (card.effect.type !== 'jail-free') deck.push(id);
 }
@@ -193,6 +194,7 @@ function nextTurn(game: GameState) {
   game.turnIndex = next;
   game.currentPlayerId = game.turnOrder[next]!;
   game.lastRoll = null;
+  game.lastCard = null;
   game.rolledDoubles = false;
   game.phase = { type: 'awaiting-roll' };
 }
@@ -296,6 +298,7 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       const player = playerById(game, command.playerId);
       const dice = command.dice ?? roll(random);
       game.lastRoll = dice;
+      game.lastCard = null;
       const doubles = dice[0] === dice[1];
       if (player.inJail) {
         if (!doubles) {
@@ -356,7 +359,7 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       ensureTurn(game, command.playerId);
       if (game.phase.type !== 'awaiting-end') throw new Error('turn cannot end now');
       const current = playerById(game, command.playerId);
-      if (game.rolledDoubles && !current.inJail) { game.phase = { type: 'awaiting-roll' }; game.lastRoll = null; }
+      if (game.rolledDoubles && !current.inJail) { game.phase = { type: 'awaiting-roll' }; game.lastRoll = null; game.lastCard = null; }
       else nextTurn(game);
       if (game.timerExpired && game.turnIndex === 0) finishTimed(game, random);
       break;

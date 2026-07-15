@@ -34,6 +34,7 @@ export interface PropertyState { ownerId: string | null; mortgaged: boolean; bui
 export interface ActivityEntry { id: string; at: number; text: string; tone?: 'money' | 'warning' | 'success' }
 export interface GameSettings { mode: 'official' | 'quick'; durationMinutes?: 45 | 60 | 90 }
 export interface TradeOffer { id: string; fromPlayerId: string; toPlayerId: string; offeredCash: number; requestedCash: number; offeredProperties: number[]; requestedProperties: number[]; offeredJailCards: string[]; requestedJailCards: string[] }
+export interface LastCardDraw { drawId: string; cardId: string; deck: 'chance' | 'community-chest'; playerId: string }
 
 export type GamePhase =
   | { type: 'lobby' }
@@ -61,6 +62,7 @@ export interface GameState {
   timerExpired: boolean;
   lastRoll: [number, number] | null;
   rolledDoubles: boolean;
+  lastCard: LastCardDraw | null;
   properties: Record<number, PropertyState>;
   bankHouses: number;
   bankHotels: number;
