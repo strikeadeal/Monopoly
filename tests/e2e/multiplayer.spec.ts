@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('two isolated phones create, join, start, and recover the same room', async ({ browser }) => {
+  test.setTimeout(60_000);
   const hostContext = await browser.newContext();
   const guestContext = await browser.newContext();
   const host = await hostContext.newPage();
@@ -46,10 +47,32 @@ test('two isolated phones create, join, start, and recover the same room', async
   await expect(guest.getByText('Alex · playing')).toBeVisible();
   await expect(host.locator('.die')).toHaveCount(2);
   await expect(guest.locator('.die')).toHaveCount(2);
-  for (const page of [host, guest]) {
-    const cardClose = page.getByRole('button', { name: 'Close card' });
-    if (await cardClose.isVisible().catch(() => false)) await cardClose.click();
-  }
+  await expect(host.locator('.board')).toHaveClass(/is-animating/u);
+  await expect(guest.locator('.board')).toHaveClass(/is-animating/u);
+  await expect(host.getByText('Alex is moving…')).toBeVisible();
+  await expect(guest.getByText('Alex is moving…')).toBeVisible();
+  await expect(host.getByText('Live')).toBeVisible();
+  await expect(guest.getByText('Live')).toBeVisible();
+
+  await guest.reload();
+  await expect(guest.getByLabel('Monopoly board')).toBeVisible();
+  await expect(guest.getByText('Live')).toBeVisible();
+  await expect(guest.locator('.board')).not.toHaveClass(/is-animating/u);
+  const guestCardClose = guest.getByRole('button', { name: 'Close card' });
+  if (await guestCardClose.isVisible().catch(() => false)) await guestCardClose.click();
+
+  const hostBoardSettled = host.locator('.board:not(.is-animating)');
+  const hostCardClose = host.getByRole('button', { name: 'Close card' });
+  await Promise.race([
+    hostBoardSettled.waitFor({ state: 'visible', timeout: 5_000 }),
+    hostCardClose.waitFor({ state: 'visible', timeout: 5_000 }).then(() => hostCardClose.click())
+  ]);
+  await expect(host.locator('.board')).not.toHaveClass(/is-animating/u, { timeout: 6_000 });
+  await expect(host.getByText('Alex is moving…')).not.toBeVisible();
+  const hostPosition = await host.locator('.token-1').getAttribute('aria-label');
+  const guestPosition = await guest.locator('.token-1').getAttribute('aria-label');
+  expect(hostPosition).toBe(guestPosition);
+  await expect(host.getByText('Live')).toBeVisible();
 
   await host.reload();
   await expect(host.getByLabel('Monopoly board')).toBeVisible();

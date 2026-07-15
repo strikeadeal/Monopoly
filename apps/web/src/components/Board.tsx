@@ -2,6 +2,7 @@ import { BOARD, type GameState, type StreetSpace } from '@monopoly/game';
 import type { CSSProperties } from 'react';
 import { SpaceIcon } from './SpaceIcon';
 import { TokenIcon } from './TokenIcon';
+import type { TokenMotion } from '../useMovementAnimation';
 
 const ICON_SPACES = ['jail', 'go-to-jail', 'chance', 'community-chest'];
 
@@ -14,14 +15,14 @@ function coordinates(index: number) {
 }
 const shortName = (name: string) => name.replace(' Avenue', '').replace(' Railroad', ' RR').replace('Community Chest', 'Chest').replace('Free Parking', 'Free').replace('Just Visiting', 'Visit');
 
-export function Board({ state, selectedIndex, onSelect }: { state: GameState; selectedIndex: number | null; onSelect: (index: number) => void }) {
-  return <div className="board" aria-label="Monopoly board">
+export function Board({ state, selectedIndex, onSelect, displayPositions = {}, movingPlayerId = null, tokenMotion = null }: { state: GameState; selectedIndex: number | null; onSelect: (index: number) => void; displayPositions?: Record<string, number>; movingPlayerId?: string | null; tokenMotion?: TokenMotion }) {
+  return <div className={`board ${movingPlayerId ? 'is-animating' : ''}`} aria-label="Monopoly board" aria-busy={Boolean(movingPlayerId)}>
     <div className="board-center" aria-hidden="true"><span>MONOPOLY</span><small>PARTY</small></div>
     {BOARD.map((space) => {
       const { row, col } = coordinates(space.index);
       const property = state.properties[space.index];
       const streetColor = space.type === 'street' ? colors[(space as StreetSpace).color] : undefined;
-      const players = state.players.filter((player) => !player.bankrupt && player.position === space.index);
+      const players = state.players.filter((player) => !player.bankrupt && (displayPositions[player.id] ?? player.position) === space.index);
       return <button
         type="button" data-testid="board-space" key={space.index} onClick={() => onSelect(space.index)}
         className={`board-space ${selectedIndex === space.index ? 'is-selected' : ''} ${property?.mortgaged ? 'is-mortgaged' : ''}`}
@@ -32,7 +33,7 @@ export function Board({ state, selectedIndex, onSelect }: { state: GameState; se
         {ICON_SPACES.includes(space.type) ? <span className="space-icon"><SpaceIcon type={space.type} /></span> : null}
         <span className="space-name">{shortName(space.name)}</span>
         {property?.buildings ? <span className="buildings">{property.buildings === 5 ? '◆' : '▪'.repeat(property.buildings)}</span> : null}
-        <span className="space-tokens">{players.map((player) => <span key={player.id} className={`token token-${state.players.indexOf(player) + 1}`} aria-label={`${player.name} on ${space.name}`}><TokenIcon token={player.token} size={12} /></span>)}</span>
+        <span className="space-tokens">{players.map((player) => <span key={player.id} className={`token token-${state.players.indexOf(player) + 1} ${player.id === movingPlayerId && tokenMotion ? `is-${tokenMotion}` : ''}`} aria-label={`${player.name} on ${space.name}`}><TokenIcon token={player.token} size={12} /></span>)}</span>
       </button>;
     })}
   </div>;

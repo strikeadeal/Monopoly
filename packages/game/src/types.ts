@@ -35,6 +35,16 @@ export interface ActivityEntry { id: string; at: number; text: string; tone?: 'm
 export interface GameSettings { mode: 'official' | 'quick'; durationMinutes?: 45 | 60 | 90 }
 export interface TradeOffer { id: string; fromPlayerId: string; toPlayerId: string; offeredCash: number; requestedCash: number; offeredProperties: number[]; requestedProperties: number[]; offeredJailCards: string[]; requestedJailCards: string[] }
 export interface LastCardDraw { drawId: string; cardId: string; deck: 'chance' | 'community-chest'; playerId: string }
+export type MovementSegment =
+  | { kind: 'steps'; reason: 'roll' | 'card'; positions: number[] }
+  | { kind: 'direct'; reason: 'jail'; destination: number };
+export interface MovementEvent {
+  id: string;
+  playerId: string;
+  startPosition: number;
+  segments: MovementSegment[];
+  pauseForCardAfterSegment: number | null;
+}
 
 export type GamePhase =
   | { type: 'lobby' }
@@ -63,6 +73,7 @@ export interface GameState {
   lastRoll: [number, number] | null;
   rolledDoubles: boolean;
   lastCard: LastCardDraw | null;
+  lastMovement?: MovementEvent | null;
   properties: Record<number, PropertyState>;
   bankHouses: number;
   bankHotels: number;
