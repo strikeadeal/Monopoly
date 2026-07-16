@@ -94,7 +94,7 @@ The existing WebSocket reconnect path and server snapshots are otherwise healthy
 
 - Simultaneous character requests are serialized by the Durable Object and reducer revision checks. The loser receives the normal rejected-command message and latest snapshot.
 - Simultaneous join allocation reads the current persisted room state before assigning the first free character.
-- Leave requests are idempotent: retrying the same `leaveRequestId` and token after a lost response matches the stored departure receipt and returns success without applying the transition twice. A different request ID with a revoked token remains unauthorized. Departure receipts expire with the room and contain no plaintext reconnect token.
+- Leave requests are idempotent: retrying the same `leaveRequestId` and token after a lost response matches a five-minute departure receipt and returns success without applying the transition twice. A different request ID with a revoked token remains unauthorized. Receipts are keyed by token hash rather than plaintext reconnect token; a last-player lobby exit may retain only this short-lived receipt after deleting the room record.
 - The leave UI disables duplicate confirmation submissions.
 - Remaining clients rely on the authoritative broadcast and existing reconnect loop; no separate presence mutation is performed in the browser.
 - A socket close racing a successful HTTP leave cannot restore membership because the authentication record is already revoked and close handling only updates presence for players still represented by the room.
