@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION, createLobby } from '@monopoly/game';
-import { RoomSession, authoritativePayload, createSocketTicket, validateClientPayload, validateSocketTicket } from './session';
+import { RoomSession, authoritativePayload, createSocketTicket, firstAvailableToken, validateClientPayload, validateSocketTicket } from './session';
 
 const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 1000);
 state.players[0]!.tokenConfirmed = true;
@@ -56,6 +56,19 @@ describe('one-use socket tickets', () => {
 });
 
 describe('client command authority', () => {
+  it('validates token selection but never exposes leave as a socket command', () => {
+    expect(validateClientPayload('SET_TOKEN', { token: 'coffee' })).toEqual({ token: 'coffee' });
+    expect(validateClientPayload('SET_TOKEN', { token: 'car' })).toBeNull();
+    expect(validateClientPayload('LEAVE_ROOM', {})).toBeNull();
+  });
+
+  it('allocates the first character not held by a lobby player', () => {
+    const lobby = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 1_000);
+    expect(firstAvailableToken(lobby)).toBe('key');
+    lobby.players.push({ ...lobby.players[0]!, id: 'p2', token: 'key' });
+    expect(firstAvailableToken(lobby)).toBe('coffee');
+  });
+
   it('discards client dice and replaces client clocks', () => {
     expect(authoritativePayload('ROLL', { dice: [6, 6], now: 1 }, 'p1', 5_000)).toEqual({ playerId: 'p1' });
     expect(authoritativePayload('PLACE_BID', { amount: 20, now: 1 }, 'p1', 5_000)).toEqual({ amount: 20, playerId: 'p1', now: 5_000 });
