@@ -49,7 +49,7 @@ const addStepMovement = (game: GameState, positions: number[]) => {
 export function createGame(players: PlayerSeed[], settings: GameSettings, random: RandomSource = Math.random, startedAt = now()): GameState {
   if (players.length < 2 || players.length > 6) throw new Error('games require 2–6 players');
   const statePlayers: PlayerState[] = players.map((player, index) => ({
-    ...player, cash: 1500, position: 0, inJail: false, jailTurns: 0, doublesStreak: 0, bankrupt: false, jailFreeCards: [], ready: true, connected: true, joinedAt: startedAt + index
+    ...player, cash: 1500, position: 0, inJail: false, jailTurns: 0, doublesStreak: 0, bankrupt: false, jailFreeCards: [], ready: true, tokenConfirmed: true, connected: true, joinedAt: startedAt + index
   }));
   return {
     revision: 0, status: 'playing', hostPlayerId: players[0]!.id, players: statePlayers, settings,
@@ -69,6 +69,8 @@ export function createLobby(host: PlayerSeed, settings: GameSettings, createdAt 
   base.turnOrder = [host.id];
   base.status = 'lobby';
   base.phase = { type: 'lobby' };
+  base.players[0]!.ready = false;
+  base.players[0]!.tokenConfirmed = false;
   base.activities = [{ id: 'room-created', at: createdAt, text: `${host.name} created the room.` }];
   return base;
 }
@@ -293,15 +295,29 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
     case 'ADD_PLAYER': {
       if (game.status !== 'lobby' || game.players.length >= 6) throw new Error('room is unavailable');
       if (game.players.some((player) => player.id === command.player.id || player.token === command.player.token)) throw new Error('player or token already used');
-      game.players.push({ ...command.player, cash: 1500, position: 0, inJail: false, jailTurns: 0, doublesStreak: 0, bankrupt: false, jailFreeCards: [], ready: false, connected: true, joinedAt: now() });
+      game.players.push({ ...command.player, cash: 1500, position: 0, inJail: false, jailTurns: 0, doublesStreak: 0, bankrupt: false, jailFreeCards: [], ready: false, tokenConfirmed: false, connected: true, joinedAt: now() });
       game.turnOrder.push(command.player.id);
       addActivity(game, `${command.player.name} joined the room.`);
       break;
     }
-    case 'SET_READY': playerById(game, command.playerId).ready = command.ready; break;
+    case 'SET_TOKEN': {
+      if (game.status !== 'lobby') throw new Error('characters can only change in the lobby');
+      const player = playerById(game, command.playerId);
+      if (game.players.some((candidate) => candidate.id !== player.id && candidate.token === command.token)) throw new Error('character already used');
+      player.token = command.token;
+      player.tokenConfirmed = true;
+      player.ready = false;
+      break;
+    }
+    case 'SET_READY': {
+      const player = playerById(game, command.playerId);
+      if (command.ready && !player.tokenConfirmed) throw new Error('choose a character first');
+      player.ready = command.ready;
+      break;
+    }
     case 'START_GAME': {
       if (game.hostPlayerId !== command.playerId) throw new Error('only the host can start');
-      if (game.players.length < 2 || !game.players.every((player) => player.ready)) throw new Error('2–6 ready players are required');
+      if (game.players.length < 2 || !game.players.every((player) => player.tokenConfirmed && player.ready)) throw new Error('2–6 ready players are required');
       game.status = 'playing'; game.phase = { type: 'awaiting-roll' }; game.timerEndsAt = game.settings.mode === 'quick' ? now() + (game.settings.durationMinutes ?? 60) * 60_000 : null;
       break;
     }

@@ -5,6 +5,7 @@ import {
   COMMUNITY_CHEST_CARDS,
   PROPERTY_SPACES,
   createGame,
+  createLobby,
   reduceGame,
   type GameCommand,
   type PlayerSeed
@@ -47,6 +48,29 @@ describe('canonical North American game data', () => {
 });
 
 describe('authoritative game reducer', () => {
+  it('requires every lobby player to confirm a unique token before readying', () => {
+    let lobby = createLobby(players[0]!, { mode: 'official' }, 1_000, () => 0);
+    lobby = reduceGame(lobby, { type: 'ADD_PLAYER', player: players[1]! }, () => 0);
+
+    expect(lobby.players.map(({ token, tokenConfirmed, ready }) => ({ token, tokenConfirmed, ready }))).toEqual([
+      { token: 'rocket', tokenConfirmed: false, ready: false },
+      { token: 'key', tokenConfirmed: false, ready: false }
+    ]);
+    expect(() => reduceGame(lobby, { type: 'SET_READY', playerId: 'p1', ready: true }, () => 0)).toThrow('choose a character first');
+
+    lobby = reduceGame(lobby, { type: 'SET_TOKEN', playerId: 'p1', token: 'coffee' }, () => 0);
+    expect(lobby.players[0]).toMatchObject({ token: 'coffee', tokenConfirmed: true, ready: false });
+    expect(() => reduceGame(lobby, { type: 'SET_TOKEN', playerId: 'p2', token: 'coffee' }, () => 0)).toThrow('character already used');
+  });
+
+  it('resets readiness when a confirmed lobby character changes', () => {
+    let lobby = createLobby(players[0]!, { mode: 'official' }, 1_000, () => 0);
+    lobby = reduceGame(lobby, { type: 'SET_TOKEN', playerId: 'p1', token: 'rocket' }, () => 0);
+    lobby = reduceGame(lobby, { type: 'SET_READY', playerId: 'p1', ready: true }, () => 0);
+    lobby = reduceGame(lobby, { type: 'SET_TOKEN', playerId: 'p1', token: 'coffee' }, () => 0);
+    expect(lobby.players[0]).toMatchObject({ token: 'coffee', tokenConfirmed: true, ready: false });
+  });
+
   it('starts every player with $1,500 and waits for the first roll', () => {
     const game = createGame(players, { mode: 'official' }, () => 0);
     expect(game.players.every((player) => player.cash === 1500)).toBe(true);
