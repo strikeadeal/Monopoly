@@ -15,7 +15,7 @@ const players: PlayerSeed[] = [
   { id: 'p2', name: 'Sam', token: 'key' }
 ];
 
-describe('canonical North American game data', () => {
+describe('canonical game data', () => {
   it('contains the complete board and both 16-card decks', () => {
     expect(BOARD).toHaveLength(40);
     expect(BOARD.filter((space) => space.type === 'street')).toHaveLength(22);
@@ -26,9 +26,28 @@ describe('canonical North American game data', () => {
     expect(COMMUNITY_CHEST_CARDS).toHaveLength(16);
   });
 
+  it('uses the approved Perth suburb names for every street', () => {
+    expect(BOARD.filter((space) => space.type === 'street').map((space) => [space.index, space.name, space.color])).toEqual([
+      [1, 'Armadale', 'brown'], [3, 'Midland', 'brown'],
+      [6, 'Gosnells', 'light-blue'], [8, 'Balga', 'light-blue'], [9, 'Rockingham', 'light-blue'],
+      [11, 'Cannington', 'pink'], [13, 'Maddington', 'pink'], [14, 'Thornlie', 'pink'],
+      [16, 'Hillarys', 'orange'], [18, 'Victoria Park', 'orange'], [19, 'Bayswater', 'orange'],
+      [21, 'Maylands', 'red'], [23, 'Mount Hawthorn', 'red'], [24, 'Scarborough', 'red'],
+      [26, 'Mount Lawley', 'yellow'], [27, 'Subiaco', 'yellow'], [29, 'Claremont', 'yellow'],
+      [31, 'Applecross', 'green'], [32, 'Cottesloe', 'green'], [34, 'City Beach', 'green'],
+      [37, 'Dalkeith', 'dark-blue'], [39, 'Peppermint Grove', 'dark-blue']
+    ]);
+  });
+
+  it('names street-specific Chance destinations after their Perth tiles', () => {
+    expect(CHANCE_CARDS.find((card) => card.id === 'ch-boardwalk')).toMatchObject({ title: 'Peppermint Grove awaits', detail: 'Advance to Peppermint Grove.', effect: { type: 'move-to', index: 39 } });
+    expect(CHANCE_CARDS.find((card) => card.id === 'ch-illinois')).toMatchObject({ title: 'Scarborough', detail: 'Advance to Scarborough. Collect $200 if you pass GO.', effect: { type: 'move-to', index: 24 } });
+    expect(CHANCE_CARDS.find((card) => card.id === 'ch-charles')).toMatchObject({ title: 'Cannington', detail: 'Advance to Cannington. Collect $200 if you pass GO.', effect: { type: 'move-to', index: 11 } });
+  });
+
   it('preserves the endpoint deed values', () => {
-    expect(BOARD[1]).toMatchObject({ name: 'Mediterranean Avenue', price: 60, mortgage: 30, rents: [2, 10, 30, 90, 160, 250] });
-    expect(BOARD[39]).toMatchObject({ name: 'Boardwalk', price: 400, mortgage: 200, rents: [50, 200, 600, 1400, 1700, 2000] });
+    expect(BOARD[1]).toMatchObject({ price: 60, mortgage: 30, rents: [2, 10, 30, 90, 160, 250] });
+    expect(BOARD[39]).toMatchObject({ price: 400, mortgage: 200, rents: [50, 200, 600, 1400, 1700, 2000] });
   });
 
   it('preserves every street purchase, mortgage, building, and rent value', () => {

@@ -45,7 +45,7 @@ describe('mobile game UI', () => {
     const initial = makeState();
     const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
     render(<GameScreen state={state} {...screenProps} />);
-    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.queryByText('Alex is moving…')).toBeNull();
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
   });
@@ -62,11 +62,11 @@ describe('mobile game UI', () => {
     expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull();
 
     await act(async () => vi.advanceTimersByTimeAsync(600));
-    expect(screen.getByLabelText('Alex on Mediterranean Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Armadale')).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(140));
     expect(screen.getByLabelText('Alex on Community Chest')).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(140));
-    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull();
     await act(async () => vi.advanceTimersByTimeAsync(140));
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
@@ -84,7 +84,7 @@ describe('mobile game UI', () => {
     expect(screen.getByLabelText('Alex on Chance')).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'A small detour card' })).toBeInTheDocument();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Got it' })); });
-    expect(screen.getByLabelText('Alex on Oriental Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Gosnells')).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(420));
     expect(screen.getByLabelText('Alex on Income Tax')).toBeInTheDocument();
     expect(screen.getByText('You rolled 3 + 4.')).toBeInTheDocument();
@@ -113,7 +113,7 @@ describe('mobile game UI', () => {
     const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
     const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
     rerender(<GameScreen state={state} {...screenProps} />);
-    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.queryByText('Alex is moving…')).toBeNull();
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
     window.matchMedia = originalMatchMedia;
@@ -129,7 +129,7 @@ describe('mobile game UI', () => {
     const superseding = structuredClone(moving);
     superseding.lastMovement = null;
     rerender(<GameScreen state={superseding} {...screenProps} />);
-    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
   });
 
@@ -139,7 +139,7 @@ describe('mobile game UI', () => {
     const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
     state.lastMovement!.segments = [{ kind: 'steps', reason: 'roll', positions: [2, 3] }];
     rerender(<GameScreen state={state} {...screenProps} />);
-    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.queryByText('Alex is moving…')).toBeNull();
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
   });

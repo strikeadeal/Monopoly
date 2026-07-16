@@ -4,6 +4,7 @@ coverage/
 .wrangler/
 playwright-report/
 test-results/
+.worktrees/
 .DS_Store
 .env*
 !.env.example
