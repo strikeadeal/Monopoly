@@ -2,10 +2,11 @@
 import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BOARD, createGame, reduceGame } from '@monopoly/game';
+import { BOARD, createGame, createLobby, reduceGame } from '@monopoly/game';
 import { Board } from './components/Board';
 import { GameScreen } from './components/GameScreen';
 import { Landing } from './components/Landing';
+import { Lobby } from './components/Lobby';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
@@ -22,6 +23,14 @@ describe('mobile game UI', () => {
     expect(screen.getAllByTestId('board-space')).toHaveLength(BOARD.length);
     expect(screen.getByLabelText('Alex on GO')).toBeInTheDocument();
     expect(screen.getByLabelText('Sam on GO')).toBeInTheDocument();
+  });
+
+  it('turns the board center into live table status', () => {
+    const state = makeState();
+    const { container } = render(<Board state={state} selectedIndex={null} onSelect={() => undefined} />);
+    expect(container.querySelector('.board-center')).toHaveTextContent('Round 1');
+    expect(container.querySelector('.board-center')).toHaveTextContent('Alex');
+    expect(container.querySelector('.board-center')).toHaveTextContent('Current turn');
   });
 
   it('marks the jail, chance, and community chest spaces with icons', () => {
@@ -88,6 +97,74 @@ describe('mobile game UI', () => {
     await act(async () => vi.advanceTimersByTimeAsync(420));
     expect(screen.getByLabelText('Alex on Income Tax')).toBeInTheDocument();
     expect(screen.getByText('You rolled 3 + 4.')).toBeInTheDocument();
+  });
+
+  it('announces the rolled landing instead of the card destination', async () => {
+    vi.useFakeTimers();
+    const initial = makeState();
+    initial.chanceDeck = ['ch-utility', ...initial.chanceDeck.filter((id) => id !== 'ch-utility')];
+    const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
+    const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [3, 4] }, () => 0);
+    rerender(<GameScreen state={state} {...screenProps} />);
+    await act(async () => vi.advanceTimersByTimeAsync(1_580));
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    await act(async () => vi.advanceTimersByTimeAsync(700));
+    expect(screen.getByText('Alex rolled 3 and 4 and landed on Chance.')).toBeInTheDocument();
+  });
+
+  it('shows every player balance on the game screen', () => {
+    render(<GameScreen state={makeState()} {...screenProps} />);
+    expect(screen.getByLabelText('Alex, you, current player, $1,500')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sam, $1,500')).toBeInTheDocument();
+  });
+
+  it('disables invalid deed actions and explains the first blocker', () => {
+    const state = makeState();
+    state.properties[39]!.ownerId = 'p1';
+    render(<GameScreen state={state} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Boardwalk, owned' }));
+    expect(screen.getByRole('button', { name: 'Build' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Sell building' })).toBeDisabled();
+    expect(screen.getByText('Own the full color group first.')).toBeInTheDocument();
+  });
+
+  it('groups deeds by color and shows group completion', () => {
+    const state = makeState();
+    state.properties[37]!.ownerId = 'p1';
+    state.properties[39]!.ownerId = 'p1';
+    render(<GameScreen state={state} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'My assets' }));
+    expect(screen.getByRole('heading', { name: 'Dark blue' })).toBeInTheDocument();
+    expect(screen.getByText('2 of 2 deeds')).toBeInTheDocument();
+  });
+
+  it('separates both sides of a trade and summarizes the offer', () => {
+    const state = makeState();
+    state.properties[37]!.ownerId = 'p2';
+    state.properties[39]!.ownerId = 'p1';
+    render(<GameScreen state={state} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Trade' }));
+    expect(screen.getByRole('heading', { name: 'You give' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'You receive' })).toBeInTheDocument();
+    expect(screen.getByText('You give $0 and 0 deeds. You receive $0 and 0 deeds.')).toBeInTheDocument();
+  });
+
+  it('rejects negative and fractional trade cash before submission', () => {
+    render(<GameScreen state={makeState()} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Trade' }));
+    const [giveCash] = screen.getAllByRole('spinbutton', { name: 'Cash' });
+    fireEvent.change(giveCash!, { target: { value: '-1' } });
+    expect(screen.getByRole('button', { name: 'Send offer' })).toBeDisabled();
+    fireEvent.change(giveCash!, { target: { value: '1.5' } });
+    expect(screen.getByRole('button', { name: 'Send offer' })).toBeDisabled();
+  });
+
+  it('does not show street-building guidance for a railroad', () => {
+    const state = makeState();
+    state.properties[5]!.ownerId = 'p1';
+    render(<GameScreen state={state} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Reading Railroad, owned' }));
+    expect(screen.queryByText('Only streets can be improved.')).not.toBeInTheDocument();
   });
 
   it('uses a lift and drop when moving directly to Jail', async () => {
@@ -167,5 +244,23 @@ describe('mobile game UI', () => {
     render(<Landing initialRoomCode="ABC234" onCreate={() => undefined} onJoin={() => undefined} busy={false} error={null} />);
     expect(screen.getByLabelText('Room code')).toHaveValue('ABC234');
     expect(screen.getByRole('button', { name: 'Join game' })).toBeInTheDocument();
+  });
+
+  it('offers explicit invite and readiness controls in the lobby', () => {
+    const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 0, () => 0);
+    state.roomCode = 'ABC234';
+    render(<Lobby state={state} playerId="p1" send={() => undefined} />);
+    expect(screen.getByRole('button', { name: 'Copy invite' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Share invite' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ready' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('does not report a copied invite when the clipboard is unavailable', async () => {
+    const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 0, () => 0);
+    state.roomCode = 'ABC234';
+    render(<Lobby state={state} playerId="p1" send={() => undefined} />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy invite' })); });
+    expect(screen.getByRole('button', { name: 'Copy unavailable' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Invite copied' })).not.toBeInTheDocument();
   });
 });

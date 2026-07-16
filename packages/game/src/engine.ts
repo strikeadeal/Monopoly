@@ -1,5 +1,5 @@
 import { BOARD, CARD_BY_ID, CHANCE_CARDS, COMMUNITY_CHEST_CARDS, PROPERTY_SPACES } from './data';
-import type { BoardSpace, GameCard, GameCommand, GameSettings, GameState, PlayerSeed, PlayerState, PropertyState, StreetSpace, TradeOffer } from './types';
+import type { ActionAvailability, BoardSpace, GameCard, GameCommand, GameSettings, GameState, PlayerSeed, PlayerState, PropertyActionAvailability, PropertyState, StreetSpace, TradeOffer } from './types';
 
 export type RandomSource = () => number;
 const now = () => Date.now();
@@ -189,11 +189,6 @@ function resolveSpace(game: GameState, player: PlayerState, rentMultiplier: numb
 function ensureTurn(game: GameState, playerId: string) {
   if (game.currentPlayerId !== playerId) throw new Error('not your turn');
 }
-function canManageAssets(game: GameState, playerId: string) {
-  if (game.status !== 'playing') throw new Error('game is not active');
-  if (game.phase.type === 'auction' || game.phase.type === 'purchase' || game.phase.type === 'finished' || game.phase.type === 'paused') throw new Error('asset action is not available now');
-  if (game.phase.type === 'debt' && game.phase.playerId !== playerId) throw new Error('another player is resolving debt');
-}
 function nextTurn(game: GameState) {
   if (activePlayers(game).length === 1) {
     game.status = 'finished';
@@ -239,6 +234,60 @@ function buildingIsEven(game: GameState, space: StreetSpace, direction: 1 | -1) 
   const values = groupSpaces(space).map((item) => game.properties[item.index]!.buildings);
   const current = game.properties[space.index]!.buildings;
   return direction === 1 ? current === Math.min(...values) : current === Math.max(...values);
+}
+const available = (): ActionAvailability => ({ allowed: true });
+const unavailable = (reason: string): ActionAvailability => ({ allowed: false, reason });
+function assetManagementReason(game: GameState, playerId: string) {
+  if (game.status !== 'playing') return 'The game is not active.';
+  if (game.phase.type === 'auction') return 'Finish the auction first.';
+  if (game.phase.type === 'purchase') return 'Finish the current purchase first.';
+  if (game.phase.type === 'paused') return 'Resume the game first.';
+  if (game.phase.type === 'finished') return 'The game has finished.';
+  if (game.phase.type === 'debt' && game.phase.playerId !== playerId) return 'Another player is resolving a payment.';
+  return null;
+}
+export function getPropertyActionAvailability(game: GameState, playerId: string, spaceIndex: number): PropertyActionAvailability {
+  const space = propertySpace(spaceIndex);
+  const property = propertyAt(game, spaceIndex);
+  const player = playerById(game, playerId);
+  const phaseReason = assetManagementReason(game, playerId);
+  if (phaseReason) return {
+    build: unavailable(phaseReason), sellBuilding: unavailable(phaseReason), mortgage: unavailable(phaseReason), unmortgage: unavailable(phaseReason)
+  };
+  if (property.ownerId !== player.id) return {
+    build: unavailable('You do not own this property.'), sellBuilding: unavailable('You do not own this property.'),
+    mortgage: unavailable('You do not own this property.'), unmortgage: unavailable('You do not own this property.')
+  };
+
+  let build = unavailable('Only streets can be improved.');
+  let sellBuilding = unavailable('There are no buildings to sell.');
+  if (space.type === 'street') {
+    const group = groupSpaces(space);
+    if (!ownsGroup(game, player.id, space.color)) build = unavailable('Own the full color group first.');
+    else if (group.some((item) => game.properties[item.index]!.mortgaged)) build = unavailable('Unmortgage the full color group first.');
+    else if (property.buildings === 5) build = unavailable('This property already has a hotel.');
+    else if (!buildingIsEven(game, space, 1)) build = unavailable('Build evenly across the color group.');
+    else if (player.cash < space.buildCost) build = unavailable(`You need $${space.buildCost} to build here.`);
+    else if (property.buildings < 4 && game.bankHouses < 1) build = unavailable('The Bank has no houses left.');
+    else if (property.buildings === 4 && game.bankHotels < 1) build = unavailable('The Bank has no hotels left.');
+    else build = available();
+
+    if (property.buildings > 0) {
+      if (!buildingIsEven(game, space, -1)) sellBuilding = unavailable('Sell evenly across the color group.');
+      else if (property.buildings === 5 && game.bankHouses < 4) sellBuilding = unavailable('The Bank needs four houses to break up this hotel.');
+      else sellBuilding = available();
+    }
+  }
+
+  const groupHasBuildings = space.type === 'street' && groupSpaces(space).some((item) => game.properties[item.index]!.buildings > 0);
+  const mortgage = property.mortgaged
+    ? unavailable('This property is already mortgaged.')
+    : groupHasBuildings ? unavailable('Sell every building in this color group first.') : available();
+  const unmortgageCost = Math.ceil(space.mortgage * 1.1);
+  const unmortgage = !property.mortgaged
+    ? unavailable('This property is not mortgaged.')
+    : player.cash < unmortgageCost ? unavailable(`You need $${unmortgageCost} to unmortgage this property.`) : available();
+  return { build, sellBuilding, mortgage, unmortgage };
 }
 export function netWorth(game: GameState, playerId: string) {
   const player = playerById(game, playerId);
@@ -314,7 +363,7 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       game.lastCard = null;
       game.lastMovement = {
         id: `${game.revision + 1}:${player.id}:roll`, playerId: player.id, startPosition: player.position,
-        segments: [], pauseForCardAfterSegment: null
+        dice, segments: [], pauseForCardAfterSegment: null
       };
       const doubles = dice[0] === dice[1];
       if (player.inJail) {
@@ -332,6 +381,7 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       const total = dice[0] + dice[1];
       const oldPosition = player.position;
       const destination = (oldPosition + total) % 40;
+      game.lastMovement.landingIndex = destination;
       if (destination < oldPosition) { player.cash += 200; addActivity(game, `${player.name} passed GO and collected $200.`, 'money'); }
       game.lastMovement.segments.push({ kind: 'steps', reason: 'roll', positions: relativePath(oldPosition, total) });
       player.position = destination;
@@ -396,31 +446,28 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       break;
     }
     case 'BUILD': {
-      canManageAssets(game, command.playerId); const space = propertySpace(command.spaceIndex); const property = propertyAt(game, command.spaceIndex); const player = playerById(game, command.playerId);
-      if (space.type !== 'street' || property.ownerId !== player.id || !ownsGroup(game, player.id, space.color)) throw new Error('complete this color group first');
-      if (groupSpaces(space).some((item) => game.properties[item.index]!.mortgaged) || !buildingIsEven(game, space, 1) || property.buildings === 5) throw new Error('cannot build here');
-      if (player.cash < space.buildCost) throw new Error('not enough cash');
-      if (property.buildings < 4) { if (game.bankHouses < 1) throw new Error('no houses remain'); game.bankHouses -= 1; }
-      else { if (game.bankHotels < 1) throw new Error('no hotels remain'); game.bankHotels -= 1; game.bankHouses += 4; }
+      const action = getPropertyActionAvailability(game, command.playerId, command.spaceIndex).build; if (!action.allowed) throw new Error(action.reason);
+      const space = propertySpace(command.spaceIndex) as StreetSpace; const property = propertyAt(game, command.spaceIndex); const player = playerById(game, command.playerId);
+      if (property.buildings < 4) game.bankHouses -= 1;
+      else { game.bankHotels -= 1; game.bankHouses += 4; }
       player.cash -= space.buildCost; property.buildings = (property.buildings + 1) as PropertyState['buildings'];
       addActivity(game, `${player.name} improved ${space.name}.`, 'success'); break;
     }
     case 'SELL_BUILDING': {
-      canManageAssets(game, command.playerId); const space = propertySpace(command.spaceIndex); const property = propertyAt(game, command.spaceIndex); const player = playerById(game, command.playerId);
-      if (space.type !== 'street' || property.ownerId !== player.id || property.buildings === 0 || !buildingIsEven(game, space, -1)) throw new Error('cannot sell this building');
-      if (property.buildings === 5) { if (game.bankHouses < 4) throw new Error('not enough houses to break hotel'); game.bankHotels += 1; game.bankHouses -= 4; }
+      const action = getPropertyActionAvailability(game, command.playerId, command.spaceIndex).sellBuilding; if (!action.allowed) throw new Error(action.reason);
+      const space = propertySpace(command.spaceIndex) as StreetSpace; const property = propertyAt(game, command.spaceIndex); const player = playerById(game, command.playerId);
+      if (property.buildings === 5) { game.bankHotels += 1; game.bankHouses -= 4; }
       else game.bankHouses += 1;
       property.buildings = (property.buildings - 1) as PropertyState['buildings']; player.cash += space.buildCost / 2; break;
     }
     case 'MORTGAGE': {
-      canManageAssets(game, command.playerId); const space = propertySpace(command.spaceIndex); const property = propertyAt(game, command.spaceIndex); const player = playerById(game, command.playerId);
-      if (property.ownerId !== player.id || property.mortgaged) throw new Error('property cannot be mortgaged');
-      if (space.type === 'street' && groupSpaces(space).some((item) => game.properties[item.index]!.buildings > 0)) throw new Error('sell buildings first');
+      const action = getPropertyActionAvailability(game, command.playerId, command.spaceIndex).mortgage; if (!action.allowed) throw new Error(action.reason);
+      const space = propertySpace(command.spaceIndex); const property = propertyAt(game, command.spaceIndex); const player = playerById(game, command.playerId);
       property.mortgaged = true; player.cash += space.mortgage; break;
     }
     case 'UNMORTGAGE': {
-      canManageAssets(game, command.playerId); const space = propertySpace(command.spaceIndex); const property = propertyAt(game, command.spaceIndex); const player = playerById(game, command.playerId); const cost = Math.ceil(space.mortgage * 1.1);
-      if (property.ownerId !== player.id || !property.mortgaged || player.cash < cost) throw new Error('property cannot be unmortgaged');
+      const action = getPropertyActionAvailability(game, command.playerId, command.spaceIndex).unmortgage; if (!action.allowed) throw new Error(action.reason);
+      const space = propertySpace(command.spaceIndex); const property = propertyAt(game, command.spaceIndex); const player = playerById(game, command.playerId); const cost = Math.ceil(space.mortgage * 1.1);
       property.mortgaged = false; player.cash -= cost; break;
     }
     case 'SETTLE_DEBT': {

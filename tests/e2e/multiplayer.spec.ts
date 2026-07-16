@@ -20,7 +20,7 @@ test('two isolated phones create, join, start, and recover the same room', async
   await guest.getByRole('button', { name: 'Key' }).click();
   await guest.getByRole('button', { name: 'Join game' }).click();
   await expect(guest.getByRole('heading', { name: 'Bring everyone in.' })).toBeVisible();
-  await guest.getByRole('button', { name: 'I’m ready' }).click();
+  await guest.getByRole('button', { name: 'Not ready' }).click();
 
   await expect(host.getByText('Players 2/6')).toBeVisible();
   await expect(host.getByRole('button', { name: 'Start game' })).toBeEnabled();

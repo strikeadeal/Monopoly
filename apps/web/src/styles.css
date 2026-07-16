@@ -132,3 +132,118 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .card-band-community-chest { background: #4f8dbb; }
 @media (min-width:700px){ .space-icon svg { width: 14px; } }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
+
+/* Tabletop interface system */
+:root {
+  --felt: #b7d7c5;
+  --paper: #f8f1df;
+  --ink: #17251f;
+  --rail: #d8d1bd;
+  --ruby: #b8433c;
+  --brass: #b08a45;
+  --muted: #627169;
+  --line-strong: rgba(23,37,31,.28);
+  --shadow-low: 0 5px 0 rgba(58,80,68,.16);
+  --shadow-high: 0 18px 50px rgba(23,37,31,.2);
+}
+.game-shell { max-width: 560px; }
+.status-rail > span:not(.status-dot), .table-header strong, .asset-summary strong, .balance-chip small, .bid-value { font-variant-numeric: tabular-nums; }
+.player-balances { display:flex; gap:7px; margin:0 0 10px; padding:2px 1px 5px; overflow-x:auto; scrollbar-width:none; }
+.player-balances::-webkit-scrollbar { display:none; }
+.balance-chip { position:relative; display:flex; flex:0 0 auto; align-items:center; gap:8px; min-width:132px; padding:7px 10px; overflow:hidden; border:1px solid rgba(23,37,31,.16); border-radius:9px; background:rgba(248,241,223,.58); }
+.balance-chip::after { position:absolute; right:0; bottom:0; left:0; height:2px; content:""; background:transparent; }
+.balance-chip.is-current::after { background:var(--ruby); }
+.balance-chip.is-me { border-color:rgba(47,111,89,.54); background:rgba(248,241,223,.88); }
+.balance-chip.is-bankrupt { opacity:.52; filter:grayscale(1); }
+.balance-token { display:grid; place-items:center; width:28px; height:28px; border:1px solid var(--line); border-radius:50%; background:var(--paper); }
+.balance-chip strong,.balance-chip small { display:block; }
+.balance-chip strong { max-width:76px; overflow:hidden; font-size:.72rem; text-overflow:ellipsis; white-space:nowrap; }
+.balance-chip small { margin-top:1px; color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.68rem; font-weight:700; }
+.board { border-color:var(--ink); box-shadow:4px 5px 0 #718c7c, 0 18px 50px rgba(23,37,31,.08); }
+.board-center { position:relative; grid-area:2 / 2 / 11 / 11; display:grid; place-content:center; justify-items:center; align-content:center; transform:none; text-align:center; }
+.board-center::before { position:absolute; inset:31% 24%; border:1px solid rgba(23,37,31,.3); background:rgba(248,241,223,.88); box-shadow:4px 4px 0 rgba(23,37,31,.16); content:""; transform:rotate(-5deg); }
+.board-center > * { position:relative; z-index:1; }
+.board-center small { color:var(--ruby); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:clamp(.48rem,1.7vw,.68rem); font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+.board-center span { margin:3px 0 0; padding:0; border:0; font-family:'DM Serif Display',Georgia,serif; font-size:clamp(1rem,5vw,2rem); letter-spacing:-.02em; line-height:1; }
+.board-center strong { margin-top:2px; font-size:clamp(.5rem,1.8vw,.72rem); }
+.board-center em { margin-top:5px; color:var(--brass); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:clamp(.55rem,2vw,.8rem); font-style:normal; font-weight:900; }
+.board-center i { position:absolute; top:calc(50% + 70px); width:max-content; color:rgba(23,37,31,.48); font-size:clamp(.34rem,1vw,.5rem); font-style:normal; font-weight:900; letter-spacing:.28em; }
+.board-space { font-size:clamp(.33rem,1.65vw,.6rem); transition:filter .16s ease,box-shadow .16s ease; }
+.board-space.has-player { z-index:2; }
+.board-space.is-current-space { box-shadow:inset 0 0 0 2px var(--ruby); }
+.board-space:focus-visible { z-index:4; outline:2px solid var(--ink); outline-offset:-2px; }
+.turn-card,.tab-panel { border-color:rgba(23,37,31,.22); border-radius:11px; box-shadow:var(--shadow-low); }
+.turn-card { min-height:140px; }
+.deed-sheet { border-radius:14px 14px 0 0; box-shadow:var(--shadow-high); }
+.deed-actions button { min-width:0; }
+.deed-hint { margin:12px 0 0; padding:9px 11px; border-left:3px solid var(--brass); background:rgba(176,138,69,.1); color:#4d584f; font-size:.78rem; line-height:1.35; }
+.panel-heading { display:flex; align-items:end; justify-content:space-between; gap:14px; margin:18px 0 12px; }
+.panel-heading h2 { margin:0; }
+.panel-heading > span { color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.7rem; font-weight:800; text-transform:uppercase; }
+.deed-groups { display:grid; gap:18px; }
+.deed-group { overflow:hidden; border:1px solid var(--line); border-top:4px solid var(--group-color); border-radius:8px; background:rgba(255,250,240,.48); }
+.deed-group > header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px 8px; border-bottom:1px solid var(--line); }
+.deed-group h3 { margin:0; font-family:'DM Serif Display',Georgia,serif; font-size:1.08rem; font-weight:400; }
+.deed-group header span { color:var(--muted); font-size:.68rem; font-weight:800; }
+.deed-list article { position:relative; padding:10px 12px 10px 18px; }
+.deed-list article:last-child { border-bottom:0; }
+.deed-list article > div { flex:1; min-width:0; }
+.mini-band { position:absolute; top:10px; bottom:10px; left:8px; width:3px; border-radius:2px; background:var(--group-color); }
+.deed-list button { flex:0 0 auto; border-radius:7px; font-size:.76rem; }
+.trade-panel { max-width:none; }
+.trade-panel .panel-heading { align-items:start; margin-top:0; }
+.trade-panel .panel-heading label { min-width:160px; margin:0; }
+.trade-sides { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.trade-side { min-width:0; padding:12px; border:1px solid var(--line); border-top:4px solid var(--ruby); border-radius:8px; background:rgba(255,250,240,.52); }
+.trade-side.receive { border-top-color:var(--brass); }
+.trade-side h3 { margin:0 0 12px; font-family:'DM Serif Display',Georgia,serif; font-size:1.15rem; font-weight:400; }
+.trade-deeds { display:grid; gap:7px; }
+.trade-deeds label { position:relative; display:grid; grid-template-columns:20px 4px 1fr; align-items:center; gap:8px; margin:0; padding:8px; border:1px solid rgba(23,37,31,.13); border-radius:6px; background:var(--paper); font-size:.72rem; letter-spacing:0; }
+.trade-deeds input { width:18px; min-height:18px; margin:0; }
+.trade-deed-band { align-self:stretch; border-radius:2px; background:var(--group-color); }
+.trade-deeds p { margin:4px 0; color:var(--muted); font-size:.76rem; }
+.trade-summary { margin:14px 0 10px; padding:10px 12px; border:1px solid var(--line); background:rgba(216,209,189,.35); color:var(--ink); font-size:.82rem; font-weight:700; }
+.trade-submit { width:100%; }
+.activity-list { position:relative; }
+.activity-list::before { position:absolute; top:14px; bottom:14px; left:67px; width:1px; background:var(--line); content:""; }
+.activity-list li { position:relative; grid-template-columns:58px 10px 1fr; gap:8px; border-bottom:0; line-height:1.35; }
+.activity-list li::before { z-index:1; grid-column:2; width:9px; height:9px; margin-top:4px; border:2px solid var(--paper); border-radius:50%; background:#819087; box-shadow:0 0 0 1px var(--line-strong); content:""; }
+.activity-list li span { grid-column:3; }
+.activity-list li.success::before { background:#2e7658; }
+.activity-list li.money::before { background:var(--brass); }
+.activity-list li.warning::before { background:var(--ruby); }
+.invite-actions { display:flex; gap:8px; margin-top:16px; }
+.invite-actions button { min-height:40px; padding:0 14px; }
+.ready-button[aria-pressed="true"] { border-color:#2e7658; background:#dce9df; box-shadow:inset 0 0 0 1px #2e7658; color:#245d47; }
+.ready-button[aria-pressed="true"]::before { margin-right:7px; content:"✓"; }
+
+@media (max-width:520px) {
+  .game-shell { padding-right:10px; padding-left:10px; }
+  .trade-panel .panel-heading { display:block; }
+  .trade-panel .panel-heading label { margin-top:12px; }
+  .trade-sides { grid-template-columns:1fr; }
+  .board-center::before { inset:29% 19%; }
+  .board-center i { top:calc(50% + 52px); }
+}
+
+@media (min-width:900px) {
+  .landing-shell { width:min(100%,680px); }
+  .lobby-shell { display:grid; grid-template-columns:minmax(0,1.12fr) minmax(320px,.88fr); grid-template-rows:auto 1fr auto; gap:24px 42px; width:min(calc(100% - 48px),1040px); padding:36px 0; }
+  .lobby-shell .table-header { grid-column:1/-1; }
+  .invite-panel { grid-column:1; grid-row:2/4; align-content:start; margin:38px 0 0; padding:28px; border:1px solid var(--line); background:rgba(248,241,223,.42); }
+  .players-list { grid-column:2; grid-row:2; align-self:start; padding:20px; border:1px solid var(--line); background:rgba(248,241,223,.4); }
+  .lobby-actions { grid-column:2; grid-row:3; margin-top:0; }
+  .game-shell { display:grid; grid-template-columns:minmax(0,620px) minmax(320px,420px); grid-template-rows:auto auto auto 1fr; gap:10px 24px; width:min(calc(100% - 48px),1080px); max-width:1080px; min-height:100dvh; padding:24px 0; }
+  .status-rail,.player-balances { grid-column:1/-1; }
+  .status-rail { margin-bottom:0; }
+  .player-balances { margin-bottom:2px; }
+  .game-shell:has(.board) .board { grid-column:1; grid-row:3/5; align-self:start; justify-self:end; width:min(100%,calc(100dvh - 180px)); max-width:620px; }
+  .game-shell:has(.board) .bottom-nav { grid-column:2; grid-row:3; }
+  .game-shell:has(.board) .turn-card { grid-column:2; grid-row:4; align-self:start; margin-top:0; }
+  .game-shell:not(:has(.board)) .bottom-nav { grid-column:1/-1; grid-row:3; width:min(100%,760px); justify-self:center; }
+  .game-shell:not(:has(.board)) .tab-panel { grid-column:1/-1; grid-row:4; justify-self:center; width:min(100%,920px); margin-top:0; }
+  .bottom-nav { position:static; z-index:auto; display:grid; width:100%; max-width:none; padding:4px; border:1px solid var(--line); border-radius:9px; background:rgba(248,241,223,.72); backdrop-filter:none; }
+  .bottom-nav button { min-height:40px; border-radius:6px; font-size:.72rem; }
+  .turn-card { min-height:0; }
+  .deed-sheet { border-radius:14px; }
+}

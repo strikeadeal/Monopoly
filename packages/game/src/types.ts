@@ -41,9 +41,19 @@ export type MovementSegment =
 export interface MovementEvent {
   id: string;
   playerId: string;
+  dice?: [number, number];
+  landingIndex?: number;
   startPosition: number;
   segments: MovementSegment[];
   pauseForCardAfterSegment: number | null;
+}
+
+export interface ActionAvailability { allowed: boolean; reason?: string }
+export interface PropertyActionAvailability {
+  build: ActionAvailability;
+  sellBuilding: ActionAvailability;
+  mortgage: ActionAvailability;
+  unmortgage: ActionAvailability;
 }
 
 export type GamePhase =
