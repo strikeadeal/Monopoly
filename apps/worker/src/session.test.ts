@@ -3,6 +3,7 @@ import { PROTOCOL_VERSION, createLobby } from '@monopoly/game';
 import { RoomSession, authoritativePayload, createSocketTicket, validateClientPayload, validateSocketTicket } from './session';
 
 const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 1000);
+state.players[0]!.tokenConfirmed = true;
 
 describe('RoomSession', () => {
   it('rejects stale revisions with the latest snapshot', () => {

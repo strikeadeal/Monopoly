@@ -1,5 +1,5 @@
 import { BOARD, CARD_BY_ID, CHANCE_CARDS, COMMUNITY_CHEST_CARDS, PROPERTY_SPACES } from './data';
-import type { BoardSpace, GameCard, GameCommand, GameSettings, GameState, PlayerSeed, PlayerState, PropertyState, StreetSpace, TradeOffer } from './types';
+import type { BoardSpace, GameCard, GameCommand, GamePhase, GameSettings, GameState, PlayerSeed, PlayerState, PropertyState, StreetSpace, TradeOffer } from './types';
 
 export type RandomSource = () => number;
 const now = () => Date.now();
@@ -196,12 +196,60 @@ function canManageAssets(game: GameState, playerId: string) {
   if (game.phase.type === 'auction' || game.phase.type === 'purchase' || game.phase.type === 'finished' || game.phase.type === 'paused') throw new Error('asset action is not available now');
   if (game.phase.type === 'debt' && game.phase.playerId !== playerId) throw new Error('another player is resolving debt');
 }
+function transferHostAfterDeparture(game: GameState, playerId: string) {
+  if (game.hostPlayerId !== playerId) return;
+  const solvent = activePlayers(game).sort((a, b) => a.joinedAt - b.joinedAt);
+  const replacement = solvent.find((player) => player.connected) ?? solvent[0];
+  if (replacement) game.hostPlayerId = replacement.id;
+}
+function finishForLastActivePlayer(game: GameState) {
+  const solvent = activePlayers(game);
+  if (solvent.length !== 1) return false;
+  game.status = 'finished';
+  game.phase = { type: 'finished', winnerIds: [solvent[0]!.id], reason: 'bankruptcy' };
+  game.bankruptcyAuctionQueue = [];
+  return true;
+}
+function returnPlayerToBank(game: GameState, playerId: string) {
+  const player = playerById(game, playerId);
+  const returnedProperties: number[] = [];
+  player.bankrupt = true;
+  player.connected = false;
+  for (const [indexText, property] of Object.entries(game.properties)) {
+    if (property.ownerId !== player.id) continue;
+    const index = Number(indexText);
+    const space = propertySpace(index);
+    if (space.type === 'street' && property.buildings > 0) {
+      if (property.buildings === 5) game.bankHotels += 1;
+      else game.bankHouses += property.buildings;
+      property.buildings = 0;
+    }
+    property.ownerId = null;
+    property.mortgaged = false;
+    returnedProperties.push(index);
+  }
+  for (const cardId of player.jailFreeCards) {
+    const card = CARD_BY_ID.get(cardId);
+    if (card) (card.deck === 'chance' ? game.chanceDeck : game.communityChestDeck).push(cardId);
+    game.heldCardIds = game.heldCardIds.filter((id) => id !== cardId);
+  }
+  player.cash = 0;
+  player.jailFreeCards = [];
+  return returnedProperties.sort((a, b) => a - b);
+}
+function normalizeAuctionAfterDeparture(game: GameState, playerId: string, at: number) {
+  if (game.phase.type !== 'auction') return;
+  if (game.phase.bidderId === playerId) {
+    game.phase = { ...game.phase, bidderId: null, bid: 0, passedPlayerIds: [], deadline: at + 15_000 };
+  } else if (!game.phase.passedPlayerIds.includes(playerId)) game.phase.passedPlayerIds.push(playerId);
+}
 function nextTurn(game: GameState) {
   if (activePlayers(game).length === 1) {
     game.status = 'finished';
     game.phase = { type: 'finished', winnerIds: [activePlayers(game)[0]!.id], reason: 'bankruptcy' };
     return;
   }
+  if (game.bankruptcyAuctionQueue.length) { startBankruptcyAuction(game); return; }
   let next = game.turnIndex;
   do next = (next + 1) % game.turnOrder.length; while (playerById(game, game.turnOrder[next]!).bankrupt);
   if (next <= game.turnIndex) game.round += 1;
@@ -227,7 +275,8 @@ function closeAuction(game: GameState) {
   if (phase.reason === 'bankruptcy') {
     if (game.bankruptcyAuctionQueue.length) startBankruptcyAuction(game);
     else nextTurn(game);
-  } else game.phase = { type: 'awaiting-end' };
+  } else if (playerById(game, game.currentPlayerId).bankrupt) nextTurn(game);
+  else game.phase = { type: 'awaiting-end' };
 }
 function startBankruptcyAuction(game: GameState) {
   const spaceIndex = game.bankruptcyAuctionQueue.shift();
@@ -290,7 +339,7 @@ function validateTrade(game: GameState, offer: TradeOffer) {
 
 export function reduceGame(input: GameState, command: GameCommand, random: RandomSource = Math.random): GameState {
   const game = clone(input);
-  if (game.phase.type === 'paused' && command.type !== 'RESUME' && command.type !== 'TICK') throw new Error('game is paused');
+  if (game.phase.type === 'paused' && command.type !== 'RESUME' && command.type !== 'TICK' && command.type !== 'LEAVE_ROOM') throw new Error('game is paused');
   switch (command.type) {
     case 'ADD_PLAYER': {
       if (game.status !== 'lobby' || game.players.length >= 6) throw new Error('room is unavailable');
@@ -478,9 +527,15 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       if (game.phase.type !== 'debt' || game.phase.playerId !== command.playerId) throw new Error('bankruptcy is unavailable');
       const debtor = playerById(game, command.playerId); const creditorId = game.phase.creditorId; debtor.bankrupt = true;
       if (game.pendingDebtMovement?.playerId === debtor.id) game.pendingDebtMovement = null;
+      if (!creditorId) {
+        const returnedProperties = returnPlayerToBank(game, debtor.id);
+        addActivity(game, `${debtor.name} is bankrupt.`, 'warning');
+        if (returnedProperties.length) { game.bankruptcyAuctionQueue = returnedProperties; startBankruptcyAuction(game); }
+        else nextTurn(game);
+        break;
+      }
       let buildingRefund = 0;
       let mortgageInterest = 0;
-      const returnedProperties: number[] = [];
       for (const [indexText, property] of Object.entries(game.properties)) if (property.ownerId === debtor.id) {
         const space = propertySpace(Number(indexText));
         if (space.type === 'street' && property.buildings > 0) {
@@ -490,25 +545,44 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
           property.buildings = 0;
         }
         property.ownerId = creditorId;
-        if (creditorId && property.mortgaged) mortgageInterest += Math.ceil(space.mortgage * 0.1);
-        if (!creditorId) { property.mortgaged = false; returnedProperties.push(Number(indexText)); }
+        if (property.mortgaged) mortgageInterest += Math.ceil(space.mortgage * 0.1);
       }
-      if (creditorId) {
-        const creditor = playerById(game, creditorId);
-        creditor.cash += debtor.cash + buildingRefund;
-        creditor.cash = Math.max(0, creditor.cash - mortgageInterest);
-        creditor.jailFreeCards.push(...debtor.jailFreeCards);
-      } else {
-        for (const cardId of debtor.jailFreeCards) {
-          const card = CARD_BY_ID.get(cardId);
-          if (card) (card.deck === 'chance' ? game.chanceDeck : game.communityChestDeck).push(cardId);
-          game.heldCardIds = game.heldCardIds.filter((id) => id !== cardId);
-        }
-      }
+      const creditor = playerById(game, creditorId);
+      creditor.cash += debtor.cash + buildingRefund;
+      creditor.cash = Math.max(0, creditor.cash - mortgageInterest);
+      creditor.jailFreeCards.push(...debtor.jailFreeCards);
       debtor.cash = 0; debtor.jailFreeCards = [];
       addActivity(game, `${debtor.name} is bankrupt.`, 'warning');
-      if (!creditorId && returnedProperties.length) { game.bankruptcyAuctionQueue = returnedProperties.sort((a, b) => a - b); startBankruptcyAuction(game); }
-      else nextTurn(game);
+      nextTurn(game);
+      break;
+    }
+    case 'LEAVE_ROOM': {
+      const leaving = playerById(game, command.playerId);
+      if (game.status === 'lobby') {
+        game.players = game.players.filter((player) => player.id !== leaving.id);
+        game.turnOrder = game.turnOrder.filter((id) => id !== leaving.id);
+        transferHostAfterDeparture(game, leaving.id);
+        break;
+      }
+      if (game.status === 'finished') {
+        leaving.connected = false;
+        leaving.bankrupt = true;
+        transferHostAfterDeparture(game, leaving.id);
+        break;
+      }
+      const paused = game.phase.type === 'paused' ? game.phase : null;
+      if (paused) game.phase = paused.previous;
+      if (game.pendingTrade && [game.pendingTrade.fromPlayerId, game.pendingTrade.toPlayerId].includes(leaving.id)) game.pendingTrade = null;
+      if (game.pendingDebtMovement?.playerId === leaving.id) game.pendingDebtMovement = null;
+      game.bankruptcyAuctionQueue.push(...returnPlayerToBank(game, leaving.id));
+      game.bankruptcyAuctionQueue = [...new Set(game.bankruptcyAuctionQueue)].sort((a, b) => a - b);
+      transferHostAfterDeparture(game, leaving.id);
+      addActivity(game, `${leaving.name} left the room.`, 'warning');
+      if (!finishForLastActivePlayer(game)) {
+        if (game.phase.type === 'auction') normalizeAuctionAfterDeparture(game, leaving.id, command.now ?? now());
+        else if (game.currentPlayerId === leaving.id) nextTurn(game);
+        if (paused && game.status === 'playing') game.phase = { type: 'paused', pausedAt: paused.pausedAt, previous: game.phase as Exclude<GamePhase, { type: 'paused' }> };
+      }
       break;
     }
     case 'PAUSE': if (game.hostPlayerId !== command.playerId || game.phase.type === 'paused' || game.phase.type === 'finished') throw new Error('cannot pause'); else game.phase = { type: 'paused', pausedAt: command.now ?? now(), previous: game.phase }; break;

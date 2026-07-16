@@ -108,6 +108,7 @@ export type GameCommand =
   | { type: 'PROPOSE_TRADE'; playerId: string; offer: TradeOffer }
   | { type: 'RESPOND_TRADE'; playerId: string; accept: boolean }
   | { type: 'DECLARE_BANKRUPTCY'; playerId: string }
+  | { type: 'LEAVE_ROOM'; playerId: string; now?: number }
   | { type: 'PAUSE'; playerId: string; now?: number }
   | { type: 'RESUME'; playerId: string; now?: number }
   | { type: 'TICK'; now?: number };

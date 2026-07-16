@@ -71,6 +71,58 @@ describe('authoritative game reducer', () => {
     expect(lobby.players[0]).toMatchObject({ token: 'coffee', tokenConfirmed: true, ready: false });
   });
 
+  it('removes a lobby host and transfers hosting to the earliest remaining player', () => {
+    let lobby = createLobby(players[0]!, { mode: 'official' }, 1_000, () => 0);
+    lobby = reduceGame(lobby, { type: 'ADD_PLAYER', player: players[1]! }, () => 0);
+    lobby = reduceGame(lobby, { type: 'LEAVE_ROOM', playerId: 'p1', now: 2_000 }, () => 0);
+    expect(lobby.players.map((player) => player.id)).toEqual(['p2']);
+    expect(lobby.turnOrder).toEqual(['p2']);
+    expect(lobby.hostPlayerId).toBe('p2');
+  });
+
+  it('turns a mid-game exit into bank bankruptcy and declares the last player winner', () => {
+    let game = createGame(players, { mode: 'official' }, () => 0);
+    game.properties[1] = { ownerId: 'p1', mortgaged: true, buildings: 0 };
+    game.players[0]!.cash = 700;
+    game = reduceGame(game, { type: 'LEAVE_ROOM', playerId: 'p1', now: 2_000 }, () => 0);
+    expect(game.players[0]).toMatchObject({ bankrupt: true, connected: false, cash: 0 });
+    expect(game.properties[1]).toEqual({ ownerId: null, mortgaged: false, buildings: 0 });
+    expect(game.hostPlayerId).toBe('p2');
+    expect(game.phase).toEqual({ type: 'finished', winnerIds: ['p2'], reason: 'bankruptcy' });
+  });
+
+  it('preserves another player turn and services a departed player deed at the next boundary', () => {
+    const threePlayers: PlayerSeed[] = [...players, { id: 'p3', name: 'Jo', token: 'coffee' }];
+    let game = createGame(threePlayers, { mode: 'official' }, () => 0);
+    game.properties[1]!.ownerId = 'p3';
+    game.phase = { type: 'awaiting-end' };
+    game = reduceGame(game, { type: 'LEAVE_ROOM', playerId: 'p3', now: 2_000 }, () => 0);
+    expect(game.currentPlayerId).toBe('p1');
+    expect(game.phase).toEqual({ type: 'awaiting-end' });
+    game = reduceGame(game, { type: 'END_TURN', playerId: 'p1' }, () => 0);
+    expect(game.phase).toMatchObject({ type: 'auction', spaceIndex: 1, reason: 'bankruptcy' });
+  });
+
+  it('cancels a departed player trade and restarts an auction they led', () => {
+    const threePlayers: PlayerSeed[] = [...players, { id: 'p3', name: 'Jo', token: 'coffee' }];
+    let game = createGame(threePlayers, { mode: 'official' }, () => 0);
+    game.pendingTrade = { id: 'trade', fromPlayerId: 'p2', toPlayerId: 'p3', offeredCash: 0, requestedCash: 0, offeredProperties: [], requestedProperties: [], offeredJailCards: [], requestedJailCards: [] };
+    game.phase = { type: 'auction', spaceIndex: 1, bidderId: 'p3', bid: 40, passedPlayerIds: ['p1'], deadline: 10_000, reason: 'property' };
+    game = reduceGame(game, { type: 'LEAVE_ROOM', playerId: 'p3', now: 2_000 }, () => 0);
+    expect(game.pendingTrade).toBeNull();
+    expect(game.phase).toEqual({ type: 'auction', spaceIndex: 1, bidderId: null, bid: 0, passedPlayerIds: [], deadline: 17_000, reason: 'property' });
+  });
+
+  it('keeps a game paused while safely advancing a departed current player', () => {
+    const threePlayers: PlayerSeed[] = [...players, { id: 'p3', name: 'Jo', token: 'coffee' }];
+    let game = createGame(threePlayers, { mode: 'official' }, () => 0);
+    game.phase = { type: 'paused', pausedAt: 1_000, previous: { type: 'awaiting-roll' } };
+    game = reduceGame(game, { type: 'LEAVE_ROOM', playerId: 'p1', now: 2_000 }, () => 0);
+    expect(game.phase).toEqual({ type: 'paused', pausedAt: 1_000, previous: { type: 'awaiting-roll' } });
+    expect(game.currentPlayerId).toBe('p2');
+    expect(game.hostPlayerId).toBe('p2');
+  });
+
   it('starts every player with $1,500 and waits for the first roll', () => {
     const game = createGame(players, { mode: 'official' }, () => 0);
     expect(game.players.every((player) => player.cash === 1500)).toBe(true);
@@ -238,7 +290,7 @@ describe('authoritative game reducer', () => {
   });
 
   it('auctions every deed returned by a bankruptcy to the Bank', () => {
-    const threePlayers = [...players, { id: 'p3', name: 'Jo', token: 'coffee' }];
+    const threePlayers: PlayerSeed[] = [...players, { id: 'p3', name: 'Jo', token: 'coffee' }];
     let game = createGame(threePlayers, { mode: 'official' }, () => 0);
     game.properties[1]!.ownerId = 'p1'; game.properties[3]!.ownerId = 'p1'; game.players[0]!.cash = 0;
     game.phase = { type: 'debt', playerId: 'p1', creditorId: null, amount: 200, reason: 'tax' };
