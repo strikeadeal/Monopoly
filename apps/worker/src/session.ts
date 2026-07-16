@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION, reduceGame, type CommandEnvelope, type GameCommand, type GameState } from '@monopoly/game';
+import { PROTOCOL_VERSION, reduceGame, type CommandEnvelope, type GameCommand, type GameState, type TokenId } from '@monopoly/game';
 import { z } from 'zod';
 
 export type CommandResult =
@@ -6,6 +6,13 @@ export type CommandResult =
   | { ok: false; commandId: string; code: string; message: string; state?: GameState };
 
 const timedCommandTypes = new Set<CommandEnvelope['type']>(['DECLINE_PROPERTY', 'PLACE_BID', 'PAUSE', 'RESUME']);
+export const TOKENS = ['rocket', 'key', 'coffee', 'bolt', 'star', 'globe'] as const;
+export function firstAvailableToken(state: GameState): TokenId {
+  const used = new Set(state.players.map((player) => player.token));
+  const token = TOKENS.find((candidate) => !used.has(candidate));
+  if (!token) throw new Error('room is full');
+  return token;
+}
 const empty = z.object({});
 const space = z.object({ spaceIndex: z.number().int().min(0).max(39) });
 const tradeOffer = z.object({
@@ -15,7 +22,7 @@ const tradeOffer = z.object({
   offeredJailCards: z.array(z.string().min(1).max(100)).max(2), requestedJailCards: z.array(z.string().min(1).max(100)).max(2)
 });
 const payloadSchemas: Record<string, z.ZodType<Record<string, unknown>>> = {
-  SET_READY: z.object({ ready: z.boolean() }), START_GAME: empty, ROLL: empty, BUY_PROPERTY: empty, DECLINE_PROPERTY: empty,
+  SET_TOKEN: z.object({ token: z.enum(TOKENS) }), SET_READY: z.object({ ready: z.boolean() }), START_GAME: empty, ROLL: empty, BUY_PROPERTY: empty, DECLINE_PROPERTY: empty,
   PLACE_BID: z.object({ amount: z.number().int().nonnegative() }), PASS_AUCTION: empty, END_TURN: empty,
   PAY_JAIL_FINE: empty, USE_JAIL_CARD: empty, BUILD: space, SELL_BUILDING: space, MORTGAGE: space, UNMORTGAGE: space,
   SETTLE_DEBT: empty, PROPOSE_TRADE: z.object({ offer: tradeOffer }), RESPOND_TRADE: z.object({ accept: z.boolean() }),

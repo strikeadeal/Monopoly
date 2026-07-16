@@ -26,9 +26,9 @@ export type CardEffect =
   | { type: 'jail-free' };
 
 export interface GameCard { id: string; deck: 'chance' | 'community-chest'; title: string; detail: string; effect: CardEffect }
-export interface PlayerSeed { id: string; name: string; token: string }
+export interface PlayerSeed { id: string; name: string; token: TokenId }
 export interface PlayerState extends PlayerSeed {
-  cash: number; position: number; inJail: boolean; jailTurns: number; doublesStreak: number; bankrupt: boolean; jailFreeCards: string[]; ready: boolean; connected: boolean; joinedAt: number;
+  cash: number; position: number; inJail: boolean; jailTurns: number; doublesStreak: number; bankrupt: boolean; jailFreeCards: string[]; ready: boolean; tokenConfirmed: boolean; connected: boolean; joinedAt: number;
 }
 export interface PropertyState { ownerId: string | null; mortgaged: boolean; buildings: 0 | 1 | 2 | 3 | 4 | 5 }
 export interface ActivityEntry { id: string; at: number; text: string; tone?: 'money' | 'warning' | 'success' }
@@ -88,6 +88,7 @@ export interface GameState {
 
 export type GameCommand =
   | { type: 'ADD_PLAYER'; player: PlayerSeed }
+  | { type: 'SET_TOKEN'; playerId: string; token: TokenId }
   | { type: 'SET_READY'; playerId: string; ready: boolean }
   | { type: 'START_GAME'; playerId: string }
   | { type: 'ROLL'; playerId: string; dice?: [number, number] }
@@ -107,6 +108,7 @@ export type GameCommand =
   | { type: 'PROPOSE_TRADE'; playerId: string; offer: TradeOffer }
   | { type: 'RESPOND_TRADE'; playerId: string; accept: boolean }
   | { type: 'DECLARE_BANKRUPTCY'; playerId: string }
+  | { type: 'LEAVE_ROOM'; playerId: string; now?: number }
   | { type: 'PAUSE'; playerId: string; now?: number }
   | { type: 'RESUME'; playerId: string; now?: number }
   | { type: 'TICK'; now?: number };
