@@ -3,11 +3,14 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BOARD, createGame, createLobby, reduceGame } from '@monopoly/game';
+import { ActivityTimeline } from './components/ActivityTimeline';
 import { Board } from './components/Board';
+import { BoardNavigator } from './components/BoardNavigator';
 import { GameScreen } from './components/GameScreen';
 import { Landing } from './components/Landing';
 import { LeaveRoom } from './components/LeaveRoom';
 import { Lobby } from './components/Lobby';
+import { TableLedger } from './components/TableLedger';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
@@ -24,6 +27,29 @@ describe('mobile game UI', () => {
     expect(screen.getAllByTestId('board-space')).toHaveLength(BOARD.length);
     expect(screen.getByLabelText('Alex on GO')).toBeInTheDocument();
     expect(screen.getByLabelText('Sam on GO')).toBeInTheDocument();
+  });
+
+  it('renders compact board spaces as a non-interactive overview', () => {
+    const state = makeState();
+    render(<Board compact state={state} selectedIndex={null} onSelect={() => undefined} />);
+    const spaces = screen.getAllByTestId('board-space');
+    expect(spaces).toHaveLength(BOARD.length);
+    expect(spaces.every((space) => space.tagName === 'DIV')).toBe(true);
+    expect(screen.queryByRole('button', { name: 'GO' })).toBeNull();
+  });
+
+  it('offers legible nearby spaces and an all-spaces browser', () => {
+    const state = makeState();
+    const onSelect = vi.fn();
+    render(<BoardNavigator state={state} onSelect={onSelect} />);
+    expect(screen.getByRole('button', { name: 'Previous space: Peppermint Grove' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Current space: GO' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next space: Armadale' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Browse all spaces' }));
+    expect(screen.getByRole('dialog', { name: 'Browse all board spaces' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cottesloe, street, available' }));
+    expect(onSelect).toHaveBeenCalledWith(32);
+    expect(screen.queryByRole('dialog', { name: 'Browse all board spaces' })).toBeNull();
   });
 
   it('turns the board center into live table status', () => {
@@ -135,6 +161,28 @@ describe('mobile game UI', () => {
     expect(screen.getByLabelText('Sam, $1,500')).toBeInTheDocument();
   });
 
+  it('shows the latest three authoritative table events', () => {
+    const state = makeState();
+    state.activities = [
+      { id: '4', at: 4, text: 'Fourth event.' },
+      { id: '3', at: 3, text: 'Third event.' },
+      { id: '2', at: 2, text: 'Second event.' },
+      { id: '1', at: 1, text: 'First event.' }
+    ];
+    render(<TableLedger state={state} />);
+    expect(screen.getByRole('region', { name: 'Latest at the table' })).toBeInTheDocument();
+    expect(screen.getByText('Fourth event.')).toBeInTheDocument();
+    expect(screen.getByText('Third event.')).toBeInTheDocument();
+    expect(screen.getByText('Second event.')).toBeInTheDocument();
+    expect(screen.queryByText('First event.')).toBeNull();
+  });
+
+  it('renders explicit icons for pause and compact leave controls', () => {
+    render(<GameScreen state={makeState()} {...screenProps} />);
+    expect(screen.getByRole('button', { name: 'Pause game' }).querySelector('svg')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Leave room' }).querySelector('svg')).toBeInTheDocument();
+  });
+
   it('disables invalid deed actions and explains the first blocker', () => {
     const state = makeState();
     state.properties[39]!.ownerId = 'p1';
@@ -164,6 +212,23 @@ describe('mobile game UI', () => {
     expect(screen.getByRole('heading', { name: 'You give' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'You receive' })).toBeInTheDocument();
     expect(screen.getByText('You give $0 and 0 deeds. You receive $0 and 0 deeds.')).toBeInTheDocument();
+    expect(screen.getByText('Purchase $400 · Mortgage $200')).toBeInTheDocument();
+    expect(screen.getByText('Purchase $350 · Mortgage $175')).toBeInTheDocument();
+  });
+
+  it('shows a minute label once for adjacent activity events', () => {
+    const firstMinute = new Date(2026, 0, 1, 10, 15, 5).getTime();
+    const nextMinute = new Date(2026, 0, 1, 10, 16, 5).getTime();
+    const firstLabel = new Date(firstMinute).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    render(<ActivityTimeline entries={[
+      { id: 'a', at: firstMinute, text: 'Alex rolled.' },
+      { id: 'b', at: firstMinute + 20_000, text: 'Alex bought a deed.', tone: 'success' },
+      { id: 'c', at: nextMinute, text: 'Sam rolled.' }
+    ]} />);
+    expect(screen.getAllByText(firstLabel)).toHaveLength(1);
+    expect(screen.getByText('Alex rolled.')).toBeInTheDocument();
+    expect(screen.getByText('Alex bought a deed.')).toBeInTheDocument();
+    expect(screen.getByText('Sam rolled.')).toBeInTheDocument();
   });
 
   it('rejects negative and fractional trade cash before submission', () => {

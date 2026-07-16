@@ -1,0 +1,65 @@
+import { useState, type CSSProperties } from 'react';
+import { BOARD, type GameState, type StreetSpace } from '@monopoly/game';
+
+const colors: Record<string, string> = { brown: '#8b5a3c', 'light-blue': '#63b8d5', pink: '#cf5b9d', orange: '#e98a32', red: '#c9423b', yellow: '#e0bd3d', green: '#438d64', 'dark-blue': '#315b92' };
+const typeLabel = (type: string) => type.replaceAll('-', ' ');
+
+export function BoardNavigator({ state, onSelect }: { state: GameState; onSelect: (index: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId) ?? state.players[0];
+  const position = currentPlayer?.position ?? 0;
+  const nearby = [
+    { label: 'Previous', index: (position + BOARD.length - 1) % BOARD.length },
+    { label: 'Current', index: position },
+    { label: 'Next', index: (position + 1) % BOARD.length }
+  ];
+  const select = (index: number) => { setOpen(false); onSelect(index); };
+
+  return <section className="board-navigator" aria-label="Nearby board spaces">
+    <div className="nearby-spaces">
+      {nearby.map(({ label, index }) => {
+        const space = BOARD[index]!;
+        const color = space.type === 'street' ? colors[(space as StreetSpace).color] : '#b08a45';
+        return <button
+          type="button"
+          className={label === 'Current' ? 'is-current' : ''}
+          key={label}
+          onClick={() => onSelect(index)}
+          aria-label={`${label} space: ${space.name}`}
+          style={{ '--space-accent': color } as CSSProperties}
+        >
+          <small>{label}</small>
+          <strong>{space.name}</strong>
+        </button>;
+      })}
+    </div>
+    <button type="button" className="browse-board-button" onClick={() => setOpen(true)}>Browse all spaces</button>
+    {open ? <div className="drawer-backdrop" onClick={() => setOpen(false)}>
+      <section className="deed-sheet board-browser" role="dialog" aria-label="Browse all board spaces" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="close-button" onClick={() => setOpen(false)} aria-label="Close board browser">×</button>
+        <span className="eyeline">BOARD DIRECTORY</span>
+        <h2>All spaces</h2>
+        <ol>
+          {BOARD.map((space) => {
+            const property = state.properties[space.index];
+            const owner = property?.ownerId ? state.players.find((player) => player.id === property.ownerId)?.name : null;
+            const availability = owner ? `owned by ${owner}` : 'available';
+            const color = space.type === 'street' ? colors[(space as StreetSpace).color] : '#b08a45';
+            return <li key={space.index}>
+              <button
+                type="button"
+                onClick={() => select(space.index)}
+                aria-label={`${space.name}, ${typeLabel(space.type)}, ${availability}`}
+                style={{ '--space-accent': color } as CSSProperties}
+              >
+                <span>{String(space.index).padStart(2, '0')}</span>
+                <strong>{space.name}</strong>
+                <small>{typeLabel(space.type)} · {availability}</small>
+              </button>
+            </li>;
+          })}
+        </ol>
+      </section>
+    </div> : null}
+  </section>;
+}

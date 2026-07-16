@@ -37,6 +37,21 @@ test('two isolated phones create, join, start, and recover the same room', async
   await expect(host.getByLabel('Sam, $1,500')).toBeVisible();
   await expect(guest.getByLabel('Alex, current player, $1,500')).toBeVisible();
   await expect(guest.getByLabel('Sam, you, $1,500')).toBeVisible();
+  await expect(host.getByRole('region', { name: 'Latest at the table' })).toBeVisible();
+  const viewport = host.viewportSize();
+  if (viewport && viewport.width <= 520) {
+    await expect(host.locator('button[data-testid="board-space"]')).toHaveCount(0);
+    await expect(host.getByRole('button', { name: 'Current space: GO' })).toBeVisible();
+    await host.getByRole('button', { name: 'Browse all spaces' }).click();
+    const boardBrowser = host.getByRole('dialog', { name: 'Browse all board spaces' });
+    await expect(boardBrowser).toBeVisible();
+    await expect(boardBrowser.getByRole('button')).toHaveCount(41);
+    const browserRows = await boardBrowser.locator('ol > li > button').evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+    expect(Math.min(...browserRows)).toBeGreaterThanOrEqual(44);
+    await boardBrowser.getByRole('button', { name: 'Close board browser' }).click();
+  } else {
+    await expect(host.locator('button[data-testid="board-space"]')).toHaveCount(40);
+  }
   const layout = await host.evaluate(() => {
     const board = document.querySelector<HTMLElement>('.board')!.getBoundingClientRect();
     const actions = document.querySelector<HTMLElement>('.turn-card')!.getBoundingClientRect();
