@@ -5,6 +5,7 @@ import {
   COMMUNITY_CHEST_CARDS,
   PROPERTY_SPACES,
   createGame,
+  getPropertyActionAvailability,
   createLobby,
   reduceGame,
   type GameCommand,
@@ -164,10 +165,39 @@ describe('authoritative game reducer', () => {
     expect(next.lastMovement).toEqual({
       id: '1:p1:roll',
       playerId: 'p1',
+      dice: [1, 2],
+      landingIndex: 1,
       startPosition: 38,
       segments: [{ kind: 'steps', reason: 'roll', positions: [39, 0, 1] }],
       pauseForCardAfterSegment: null
     });
+  });
+
+  it('keeps the rolled landing separate from card-directed movement', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.chanceDeck = ['ch-utility', ...game.chanceDeck.filter((id) => id !== 'ch-utility')];
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [3, 4] }, () => 0);
+    expect(next.lastMovement).toMatchObject({ dice: [3, 4], landingIndex: 7 });
+    expect(next.players[0]!.position).toBe(12);
+  });
+
+  it('explains why unavailable deed actions cannot be used', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.properties[39]!.ownerId = 'p1';
+    const actions = getPropertyActionAvailability(game, 'p1', 39);
+    expect(actions.build).toEqual({ allowed: false, reason: 'Own the full color group first.' });
+    expect(actions.sellBuilding).toEqual({ allowed: false, reason: 'There are no buildings to sell.' });
+    expect(actions.mortgage).toEqual({ allowed: true });
+    expect(actions.unmortgage).toEqual({ allowed: false, reason: 'This property is not mortgaged.' });
+  });
+
+  it('enables building only when the group and bank rules allow it', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.properties[37]!.ownerId = 'p1';
+    game.properties[39]!.ownerId = 'p1';
+    expect(getPropertyActionAvailability(game, 'p1', 39).build).toEqual({ allowed: true });
+    game.properties[37]!.mortgaged = true;
+    expect(getPropertyActionAvailability(game, 'p1', 39).build).toEqual({ allowed: false, reason: 'Unmortgage the full color group first.' });
   });
 
   it('publishes all twelve squares for a maximum roll', () => {

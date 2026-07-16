@@ -16,8 +16,9 @@ function coordinates(index: number) {
 const shortName = (name: string) => name.replace(' Avenue', '').replace(' Railroad', ' RR').replace('Community Chest', 'Chest').replace('Free Parking', 'Free').replace('Just Visiting', 'Visit');
 
 export function Board({ state, selectedIndex, onSelect, displayPositions = {}, movingPlayerId = null, tokenMotion = null }: { state: GameState; selectedIndex: number | null; onSelect: (index: number) => void; displayPositions?: Record<string, number>; movingPlayerId?: string | null; tokenMotion?: TokenMotion }) {
+  const current = state.players.find((player) => player.id === state.currentPlayerId);
   return <div className={`board ${movingPlayerId ? 'is-animating' : ''}`} aria-label="Monopoly board" aria-busy={Boolean(movingPlayerId)}>
-    <div className="board-center" aria-hidden="true"><span>MONOPOLY</span><small>PARTY</small></div>
+    <div className="board-center" aria-hidden="true"><small>Round {state.round}</small><span>{current?.name}</span><strong>Current turn</strong>{state.lastRoll ? <em>{state.lastRoll[0]} + {state.lastRoll[1]}</em> : null}<i>MONOPOLY PARTY</i></div>
     {BOARD.map((space) => {
       const { row, col } = coordinates(space.index);
       const property = state.properties[space.index];
@@ -25,7 +26,7 @@ export function Board({ state, selectedIndex, onSelect, displayPositions = {}, m
       const players = state.players.filter((player) => !player.bankrupt && (displayPositions[player.id] ?? player.position) === space.index);
       return <button
         type="button" data-testid="board-space" key={space.index} onClick={() => onSelect(space.index)}
-        className={`board-space ${selectedIndex === space.index ? 'is-selected' : ''} ${property?.mortgaged ? 'is-mortgaged' : ''}`}
+        className={`board-space ${selectedIndex === space.index ? 'is-selected' : ''} ${property?.mortgaged ? 'is-mortgaged' : ''} ${players.length ? 'has-player' : ''} ${players.some((player) => player.id === state.currentPlayerId) ? 'is-current-space' : ''}`}
         style={{ '--row': row, '--col': col, '--street': streetColor ?? '#d8d1bd' } as CSSProperties}
         aria-label={`${space.name}${property?.ownerId ? ', owned' : ''}`}
       >

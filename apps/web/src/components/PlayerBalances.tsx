@@ -9,9 +9,8 @@ export function PlayerBalances({ state, playerId }: { state: GameState; playerId
     {ordered.map((player) => {
       const labels = [player.name, player.id === playerId ? 'you' : '', player.id === state.currentPlayerId && state.status === 'playing' ? 'current player' : '', player.bankrupt ? 'bankrupt' : '', money.format(player.cash)].filter(Boolean);
       return <article key={player.id} className={`balance-chip${player.id === playerId ? ' is-me' : ''}${player.id === state.currentPlayerId ? ' is-current' : ''}${player.bankrupt ? ' is-bankrupt' : ''}`} aria-label={labels.join(', ')}>
-        <TokenIcon token={player.token} />
-        <span>{player.name}</span>
-        <strong>{money.format(player.cash)}</strong>
+        <span className="balance-token"><TokenIcon token={player.token} size={16} /></span>
+        <span><strong>{player.name}</strong><small>{money.format(player.cash)}</small></span>
       </article>;
     })}
   </section>;

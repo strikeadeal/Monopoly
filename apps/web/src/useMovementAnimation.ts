@@ -72,7 +72,9 @@ export function useMovementAnimation(state: GameState) {
       return undefined;
     }
 
-    const finalAnnouncement = `${player.name} rolled${state.lastRoll ? ` ${state.lastRoll[0]} and ${state.lastRoll[1]}` : ''} and landed on ${BOARD[player.position]!.name}.`;
+    const announcedRoll = movement.dice ?? state.lastRoll;
+    const announcedLanding = movement.landingIndex ?? player.position;
+    const finalAnnouncement = `${player.name} rolled${announcedRoll ? ` ${announcedRoll[0]} and ${announcedRoll[1]}` : ''} and landed on ${BOARD[announcedLanding]!.name}.`;
     if (reducedMotion) {
       setPresentation(null);
       setAnnouncement(finalAnnouncement);

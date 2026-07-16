@@ -12,8 +12,8 @@ test('two isolated phones create, join, start, and recover the same room', async
   await host.getByRole('button', { name: 'Create game' }).click();
   await expect(host.getByRole('heading', { name: 'Bring everyone in.' })).toBeVisible();
   await host.getByRole('button', { name: 'Rocket' }).click();
-  await expect(host.getByRole('button', { name: 'I’m ready' })).toBeEnabled();
-  await host.getByRole('button', { name: 'I’m ready' }).click();
+  await expect(host.getByRole('button', { name: 'Not ready' })).toBeEnabled();
+  await host.getByRole('button', { name: 'Not ready' }).click();
   const roomCode = await host.locator('.table-header strong').innerText();
   expect(roomCode).toMatch(/^[A-Z2-9]{6}$/u);
 
@@ -23,8 +23,8 @@ test('two isolated phones create, join, start, and recover the same room', async
   await guest.getByRole('button', { name: 'Join game' }).click();
   await expect(guest.getByRole('heading', { name: 'Bring everyone in.' })).toBeVisible();
   await guest.getByRole('button', { name: 'Key' }).click();
-  await expect(guest.getByRole('button', { name: 'I’m ready' })).toBeEnabled();
-  await guest.getByRole('button', { name: 'I’m ready' }).click();
+  await expect(guest.getByRole('button', { name: 'Not ready' })).toBeEnabled();
+  await guest.getByRole('button', { name: 'Not ready' }).click();
 
   await expect(host.getByText('Players 2/6')).toBeVisible();
   await expect(host.getByRole('button', { name: 'Start game' })).toBeEnabled();
