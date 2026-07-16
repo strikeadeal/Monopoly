@@ -2,10 +2,12 @@
 import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BOARD, createGame, reduceGame } from '@monopoly/game';
+import { BOARD, createGame, createLobby, reduceGame } from '@monopoly/game';
 import { Board } from './components/Board';
 import { GameScreen } from './components/GameScreen';
 import { Landing } from './components/Landing';
+import { LeaveRoom } from './components/LeaveRoom';
+import { Lobby } from './components/Lobby';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
@@ -13,7 +15,7 @@ const makeState = () => createGame([
   { id: 'p1', name: 'Alex', token: 'rocket' },
   { id: 'p2', name: 'Sam', token: 'key' }
 ], { mode: 'official' }, () => 0);
-const screenProps = { playerId: 'p1', status: 'online', error: null, send: () => undefined, clearError: () => undefined };
+const screenProps = { playerId: 'p1', status: 'online', error: null, send: () => undefined, clearError: () => undefined, onLeave: () => undefined, leaving: false, leaveError: null };
 
 describe('mobile game UI', () => {
   it('renders every board space with the current players', () => {
@@ -161,6 +163,31 @@ describe('mobile game UI', () => {
     expect(screen.getByRole('button', { name: 'Create game' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Join' })).toBeInTheDocument();
     expect(screen.getByText('The board in every pocket.')).toBeInTheDocument();
+  });
+
+  it('collects a name without asking for a character before joining', () => {
+    render(<Landing onCreate={() => undefined} onJoin={() => undefined} busy={false} error={null} />);
+    expect(screen.queryByText('Choose a token')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Rocket' })).toBeNull();
+  });
+
+  it('selects an available character in the lobby before readying', () => {
+    const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 1_000, () => 0);
+    const send = vi.fn();
+    render(<Lobby state={state} playerId="p1" send={send} onLeave={() => undefined} leaving={false} leaveError={null} />);
+    expect(screen.getByRole('button', { name: 'I’m ready' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Coffee' }));
+    expect(send).toHaveBeenCalledWith({ type: 'SET_TOKEN', token: 'coffee' });
+  });
+
+  it('requires confirmation and reports a failed permanent leave without closing', () => {
+    const onConfirm = vi.fn();
+    render(<LeaveRoom busy={false} error="Connection failed." onConfirm={onConfirm} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }));
+    expect(screen.getByText('This permanently removes you from the room.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Leave permanently' }));
+    expect(onConfirm).toHaveBeenCalledOnce();
+    expect(screen.getByRole('alert')).toHaveTextContent('Connection failed.');
   });
 
   it('opens a shared room link directly in join mode', () => {

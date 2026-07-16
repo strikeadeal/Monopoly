@@ -1,16 +1,14 @@
 import { useState, type FormEvent } from 'react';
-import type { GameSettings, TokenId } from '@monopoly/game';
+import type { GameSettings } from '@monopoly/game';
 import type { PlayerForm } from '../api';
-import { TokenIcon, tokenNames } from './TokenIcon';
 
-const tokenIds = Object.keys(tokenNames) as TokenId[];
 export function Landing({ onCreate, onJoin, busy, error, initialRoomCode = '', updateReady = false, onUpdate }: { onCreate: (player: PlayerForm, settings: GameSettings) => void; onJoin: (code: string, player: PlayerForm) => void; busy: boolean; error: string | null; initialRoomCode?: string; updateReady?: boolean; onUpdate?: () => void }) {
   const [mode, setMode] = useState<'create' | 'join'>(initialRoomCode ? 'join' : 'create');
   const [showInstall, setShowInstall] = useState(false);
-  const [nickname, setNickname] = useState(''); const [token, setToken] = useState<TokenId>('rocket'); const [roomCode, setRoomCode] = useState(initialRoomCode);
+  const [nickname, setNickname] = useState(''); const [roomCode, setRoomCode] = useState(initialRoomCode);
   const [gameMode, setGameMode] = useState<'official' | 'quick'>('official'); const [duration, setDuration] = useState<45 | 60 | 90>(60);
   const submit = (event: FormEvent) => {
-    event.preventDefault(); const player = { nickname: nickname.trim(), token };
+    event.preventDefault(); const player = { nickname: nickname.trim() };
     if (!player.nickname) return;
     if (mode === 'create') onCreate(player, gameMode === 'quick' ? { mode: 'quick', durationMinutes: duration } : { mode: 'official' });
     else onJoin(roomCode.trim().toUpperCase(), player);
@@ -25,7 +23,6 @@ export function Landing({ onCreate, onJoin, busy, error, initialRoomCode = '', u
       </div>
       {mode === 'join' ? <label>Room code<input value={roomCode} onChange={(event) => setRoomCode(event.target.value.replace(/[^a-z0-9]/giu, '').slice(0, 6))} placeholder="ABC234" autoCapitalize="characters" required minLength={6} /></label> : null}
       <label>Your name<input value={nickname} onChange={(event) => setNickname(event.target.value.slice(0, 24))} placeholder="How friends know you" required /></label>
-      <fieldset><legend>Choose a token</legend><div className="token-picker">{tokenIds.map((id) => <button type="button" key={id} className={token === id ? 'selected' : ''} onClick={() => setToken(id)} aria-label={tokenNames[id]}><TokenIcon token={id} /><span>{tokenNames[id]}</span></button>)}</div></fieldset>
       {mode === 'create' ? <div className="game-options"><label>Rules<select value={gameMode} onChange={(event) => setGameMode(event.target.value as 'official' | 'quick')}><option value="official">Official</option><option value="quick">Quick</option></select></label>{gameMode === 'quick' ? <label>Time<select value={duration} onChange={(event) => setDuration(Number(event.target.value) as 45 | 60 | 90)}><option value="45">45 minutes</option><option value="60">60 minutes</option><option value="90">90 minutes</option></select></label> : null}</div> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <button className="primary-button" disabled={busy}>{busy ? 'Setting the table…' : mode === 'create' ? 'Create game' : 'Join game'}</button>
