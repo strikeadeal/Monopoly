@@ -43,6 +43,22 @@ describe('mobile game UI', () => {
     expect(container.querySelector('.die.is-rolling')).toBeNull();
   });
 
+  it('shows every player authoritative cash balance on the game screen', () => {
+    const state = makeState();
+    state.players[0]!.cash = 1325;
+    state.players[1]!.cash = 1675;
+    render(<GameScreen state={state} {...screenProps} />);
+    expect(screen.getByLabelText('Alex, you, current player, $1,325')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sam, $1,675')).toBeInTheDocument();
+  });
+
+  it('keeps a bankrupt player visible at zero cash', () => {
+    const state = makeState();
+    Object.assign(state.players[1]!, { bankrupt: true, cash: 0 });
+    render(<GameScreen state={state} {...screenProps} />);
+    expect(screen.getByLabelText('Sam, bankrupt, $0')).toBeInTheDocument();
+  });
+
   it('does not replay a completed movement trace on a fresh mount', () => {
     const initial = makeState();
     const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
