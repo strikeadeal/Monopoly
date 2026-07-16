@@ -11,15 +11,19 @@ test('two isolated phones create, join, start, and recover the same room', async
   await host.getByLabel('Your name').fill('Alex');
   await host.getByRole('button', { name: 'Create game' }).click();
   await expect(host.getByRole('heading', { name: 'Bring everyone in.' })).toBeVisible();
+  await host.getByRole('button', { name: 'Rocket' }).click();
+  await expect(host.getByRole('button', { name: 'Not ready' })).toBeEnabled();
+  await host.getByRole('button', { name: 'Not ready' }).click();
   const roomCode = await host.locator('.table-header strong').innerText();
   expect(roomCode).toMatch(/^[A-Z2-9]{6}$/u);
 
   await guest.goto(`/#/join/${roomCode}`);
   await expect(guest.getByLabel('Room code')).toHaveValue(roomCode);
   await guest.getByLabel('Your name').fill('Sam');
-  await guest.getByRole('button', { name: 'Key' }).click();
   await guest.getByRole('button', { name: 'Join game' }).click();
   await expect(guest.getByRole('heading', { name: 'Bring everyone in.' })).toBeVisible();
+  await guest.getByRole('button', { name: 'Key' }).click();
+  await expect(guest.getByRole('button', { name: 'Not ready' })).toBeEnabled();
   await guest.getByRole('button', { name: 'Not ready' }).click();
 
   await expect(host.getByText('Players 2/6')).toBeVisible();
@@ -29,6 +33,10 @@ test('two isolated phones create, join, start, and recover the same room', async
   await expect(guest.getByLabel('Monopoly board')).toBeVisible();
   await expect(host.getByTestId('board-space')).toHaveCount(40);
   await expect(guest.getByTestId('board-space')).toHaveCount(40);
+  await expect(host.getByLabel('Alex, you, current player, $1,500')).toBeVisible();
+  await expect(host.getByLabel('Sam, $1,500')).toBeVisible();
+  await expect(guest.getByLabel('Alex, current player, $1,500')).toBeVisible();
+  await expect(guest.getByLabel('Sam, you, $1,500')).toBeVisible();
   const layout = await host.evaluate(() => {
     const board = document.querySelector<HTMLElement>('.board')!.getBoundingClientRect();
     const actions = document.querySelector<HTMLElement>('.turn-card')!.getBoundingClientRect();
@@ -76,6 +84,19 @@ test('two isolated phones create, join, start, and recover the same room', async
 
   await host.reload();
   await expect(host.getByLabel('Monopoly board')).toBeVisible();
+  await expect(host.getByText('Live')).toBeVisible();
+  const guestIdentity = await guest.evaluate((code) => JSON.parse(localStorage.getItem(`monopoly-party:session:${code}`) ?? 'null') as { reconnectToken: string }, roomCode);
+  await guest.getByRole('button', { name: 'Leave room' }).click();
+  await expect(guest.getByRole('dialog', { name: 'Leave this room?' })).toBeVisible();
+  await guest.getByRole('button', { name: 'Leave permanently' }).click();
+  await expect(guest.getByText('The board in every pocket.')).toBeVisible();
+  expect(await guest.evaluate((code) => localStorage.getItem(`monopoly-party:session:${code}`), roomCode)).toBeNull();
+  await expect(host.getByLabel('Sam, bankrupt, $0')).toBeVisible();
+  await expect(host.getByRole('heading', { name: 'Alex wins' })).toBeVisible();
+  const rejectedTicket = await guestContext.request.post(`http://127.0.0.1:8787/api/rooms/${roomCode}/socket-ticket`, { headers: { authorization: `Bearer ${guestIdentity.reconnectToken}` } });
+  expect(rejectedTicket.status()).toBe(401);
+  await host.reload();
+  await expect(host.getByRole('heading', { name: 'Alex wins' })).toBeVisible();
   await expect(host.getByText('Live')).toBeVisible();
   await hostContext.close();
   await guestContext.close();

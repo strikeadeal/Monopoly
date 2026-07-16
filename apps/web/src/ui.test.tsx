@@ -6,6 +6,7 @@ import { BOARD, createGame, createLobby, reduceGame } from '@monopoly/game';
 import { Board } from './components/Board';
 import { GameScreen } from './components/GameScreen';
 import { Landing } from './components/Landing';
+import { LeaveRoom } from './components/LeaveRoom';
 import { Lobby } from './components/Lobby';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -14,7 +15,7 @@ const makeState = () => createGame([
   { id: 'p1', name: 'Alex', token: 'rocket' },
   { id: 'p2', name: 'Sam', token: 'key' }
 ], { mode: 'official' }, () => 0);
-const screenProps = { playerId: 'p1', status: 'online', error: null, send: () => undefined, clearError: () => undefined };
+const screenProps = { playerId: 'p1', status: 'online', error: null, send: () => undefined, clearError: () => undefined, onLeave: () => undefined, leaving: false, leaveError: null };
 
 describe('mobile game UI', () => {
   it('renders every board space with the current players', () => {
@@ -50,11 +51,27 @@ describe('mobile game UI', () => {
     expect(container.querySelector('.die.is-rolling')).toBeNull();
   });
 
+  it('shows every player authoritative cash balance on the game screen', () => {
+    const state = makeState();
+    state.players[0]!.cash = 1325;
+    state.players[1]!.cash = 1675;
+    render(<GameScreen state={state} {...screenProps} />);
+    expect(screen.getByLabelText('Alex, you, current player, $1,325')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sam, $1,675')).toBeInTheDocument();
+  });
+
+  it('keeps a bankrupt player visible at zero cash', () => {
+    const state = makeState();
+    Object.assign(state.players[1]!, { bankrupt: true, cash: 0 });
+    render(<GameScreen state={state} {...screenProps} />);
+    expect(screen.getByLabelText('Sam, bankrupt, $0')).toBeInTheDocument();
+  });
+
   it('does not replay a completed movement trace on a fresh mount', () => {
     const initial = makeState();
     const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
     render(<GameScreen state={state} {...screenProps} />);
-    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.queryByText('Alex is moving…')).toBeNull();
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
   });
@@ -71,11 +88,11 @@ describe('mobile game UI', () => {
     expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull();
 
     await act(async () => vi.advanceTimersByTimeAsync(600));
-    expect(screen.getByLabelText('Alex on Mediterranean Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Armadale')).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(140));
     expect(screen.getByLabelText('Alex on Community Chest')).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(140));
-    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull();
     await act(async () => vi.advanceTimersByTimeAsync(140));
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
@@ -93,7 +110,7 @@ describe('mobile game UI', () => {
     expect(screen.getByLabelText('Alex on Chance')).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'A small detour card' })).toBeInTheDocument();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Got it' })); });
-    expect(screen.getByLabelText('Alex on Oriental Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Gosnells')).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(420));
     expect(screen.getByLabelText('Alex on Income Tax')).toBeInTheDocument();
     expect(screen.getByText('You rolled 3 + 4.')).toBeInTheDocument();
@@ -122,7 +139,7 @@ describe('mobile game UI', () => {
     const state = makeState();
     state.properties[39]!.ownerId = 'p1';
     render(<GameScreen state={state} {...screenProps} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Boardwalk, owned' }));
+    fireEvent.click(screen.getByRole('button', { name: `${BOARD[39]!.name}, owned` }));
     expect(screen.getByRole('button', { name: 'Build' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Sell building' })).toBeDisabled();
     expect(screen.getByText('Own the full color group first.')).toBeInTheDocument();
@@ -190,7 +207,7 @@ describe('mobile game UI', () => {
     const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
     const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
     rerender(<GameScreen state={state} {...screenProps} />);
-    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.queryByText('Alex is moving…')).toBeNull();
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
     window.matchMedia = originalMatchMedia;
@@ -206,7 +223,7 @@ describe('mobile game UI', () => {
     const superseding = structuredClone(moving);
     superseding.lastMovement = null;
     rerender(<GameScreen state={superseding} {...screenProps} />);
-    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
   });
 
@@ -216,7 +233,7 @@ describe('mobile game UI', () => {
     const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);
     state.lastMovement!.segments = [{ kind: 'steps', reason: 'roll', positions: [2, 3] }];
     rerender(<GameScreen state={state} {...screenProps} />);
-    expect(screen.getByLabelText('Alex on Baltic Avenue')).toBeInTheDocument();
+    expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.queryByText('Alex is moving…')).toBeNull();
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
   });
@@ -240,6 +257,31 @@ describe('mobile game UI', () => {
     expect(screen.getByText('The board in every pocket.')).toBeInTheDocument();
   });
 
+  it('collects a name without asking for a character before joining', () => {
+    render(<Landing onCreate={() => undefined} onJoin={() => undefined} busy={false} error={null} />);
+    expect(screen.queryByText('Choose a token')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Rocket' })).toBeNull();
+  });
+
+  it('selects an available character in the lobby before readying', () => {
+    const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 1_000, () => 0);
+    const send = vi.fn();
+    render(<Lobby state={state} playerId="p1" send={send} onLeave={() => undefined} leaving={false} leaveError={null} />);
+    expect(screen.getByRole('button', { name: 'Not ready' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Coffee' }));
+    expect(send).toHaveBeenCalledWith({ type: 'SET_TOKEN', token: 'coffee' });
+  });
+
+  it('requires confirmation and reports a failed permanent leave without closing', () => {
+    const onConfirm = vi.fn();
+    render(<LeaveRoom busy={false} error="Connection failed." onConfirm={onConfirm} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }));
+    expect(screen.getByText('This permanently removes you from the room.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Leave permanently' }));
+    expect(onConfirm).toHaveBeenCalledOnce();
+    expect(screen.getByRole('alert')).toHaveTextContent('Connection failed.');
+  });
+
   it('opens a shared room link directly in join mode', () => {
     render(<Landing initialRoomCode="ABC234" onCreate={() => undefined} onJoin={() => undefined} busy={false} error={null} />);
     expect(screen.getByLabelText('Room code')).toHaveValue('ABC234');
@@ -249,16 +291,16 @@ describe('mobile game UI', () => {
   it('offers explicit invite and readiness controls in the lobby', () => {
     const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 0, () => 0);
     state.roomCode = 'ABC234';
-    render(<Lobby state={state} playerId="p1" send={() => undefined} />);
+    render(<Lobby state={state} playerId="p1" send={() => undefined} onLeave={() => undefined} leaving={false} leaveError={null} />);
     expect(screen.getByRole('button', { name: 'Copy invite' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Share invite' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ready' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Not ready' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('does not report a copied invite when the clipboard is unavailable', async () => {
     const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 0, () => 0);
     state.roomCode = 'ABC234';
-    render(<Lobby state={state} playerId="p1" send={() => undefined} />);
+    render(<Lobby state={state} playerId="p1" send={() => undefined} onLeave={() => undefined} leaving={false} leaveError={null} />);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy invite' })); });
     expect(screen.getByRole('button', { name: 'Copy unavailable' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Invite copied' })).not.toBeInTheDocument();
