@@ -42,6 +42,11 @@ test('two isolated phones create, join, start, and recover the same room', async
   const isLandscapePhone = Boolean(viewport && viewport.width > viewport.height && viewport.height <= 520);
   if (viewport && (viewport.width <= 520 || isLandscapePhone)) {
     await expect(host.locator('button[data-testid="board-space"]')).toHaveCount(0);
+    if (isLandscapePhone) {
+      await expect(host.locator('.board-space .space-name').first()).toBeVisible();
+    } else {
+      await expect(host.locator('.board-space .space-name').first()).toBeHidden();
+    }
     await expect(host.getByRole('button', { name: 'Current space: GO' })).toBeVisible();
     await host.getByRole('button', { name: 'Browse all spaces' }).click();
     const boardBrowser = host.getByRole('dialog', { name: 'Browse all board spaces' });
