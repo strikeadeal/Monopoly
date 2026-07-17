@@ -272,11 +272,6 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 /* Compact play surface — portrait phones OR landscape phones.
    Keep in sync with COMPACT_LAYOUT_QUERY in useCompactLayout.ts */
 @media (max-width:520px), (orientation:landscape) and (max-height:520px) and (pointer:coarse) {
-  .board.is-compact .space-name { display:none; }
-  .board.is-compact .space-icon { margin:0; }
-  .board.is-compact .space-icon svg { width:10px; }
-  .board.is-compact .board-center::before { inset:27% 15%; }
-  .board.is-compact .board-center i { top:calc(50% + 44px); }
   .board.is-compact .token { width:16px; height:16px; }
   .board.is-compact .buildings { font-size:.46rem; }
   .board-browser { max-height:88dvh; }
@@ -286,6 +281,12 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
   .game-shell { padding-right:10px; padding-left:10px; }
   .status-rail { gap:5px; }
   .status-rail > div { font-size:.66rem; }
+  /* The narrow portrait board is icon-only: cells are too small for names. */
+  .board.is-compact .space-name { display:none; }
+  .board.is-compact .space-icon { margin:0; }
+  .board.is-compact .space-icon svg { width:10px; }
+  .board.is-compact .board-center::before { inset:27% 15%; }
+  .board.is-compact .board-center i { top:calc(50% + 44px); }
   .turn-card { margin-top:10px; }
   .table-ledger { margin:10px 0 6px; }
   .trade-panel .panel-heading { display:block; }
