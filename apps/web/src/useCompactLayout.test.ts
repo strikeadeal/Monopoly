@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { COMPACT_LAYOUT_QUERY, useCompactLayout } from './useCompactLayout';
+import { COMPACT_LAYOUT_QUERY, LANDSCAPE_PHONE_QUERY, useCompactLayout, useLandscapePhone } from './useCompactLayout';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -53,5 +53,14 @@ describe('useCompactLayout', () => {
     expect(result.current).toBe(false);
     unmount();
     expect(mock.media.removeEventListener).toHaveBeenCalled();
+  });
+});
+
+describe('useLandscapePhone', () => {
+  it('uses the dedicated short landscape touch query', () => {
+    const { matchMedia } = mockMatchMedia(true);
+    const { result } = renderHook(() => useLandscapePhone());
+    expect(matchMedia).toHaveBeenCalledWith(LANDSCAPE_PHONE_QUERY);
+    expect(result.current).toBe(true);
   });
 });

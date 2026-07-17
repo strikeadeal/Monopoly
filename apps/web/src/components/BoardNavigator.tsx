@@ -4,6 +4,10 @@ import { BOARD, type GameState, type StreetSpace } from '@monopoly/game';
 const colors: Record<string, string> = { brown: '#8b5a3c', 'light-blue': '#63b8d5', pink: '#cf5b9d', orange: '#e98a32', red: '#c9423b', yellow: '#e0bd3d', green: '#438d64', 'dark-blue': '#315b92' };
 const typeLabel = (type: string) => type.replaceAll('-', ' ');
 
+function DirectoryIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z" /></svg>;
+}
+
 export function BoardNavigator({ state, onSelect }: { state: GameState; onSelect: (index: number) => void }) {
   const [open, setOpen] = useState(false);
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId) ?? state.players[0];
@@ -33,7 +37,7 @@ export function BoardNavigator({ state, onSelect }: { state: GameState; onSelect
         </button>;
       })}
     </div>
-    <button type="button" className="browse-board-button" onClick={() => setOpen(true)}>Browse all spaces</button>
+    <button type="button" className="browse-board-button" aria-label="Open board directory" onClick={() => setOpen(true)}><DirectoryIcon /><span>All spaces</span></button>
     {open ? <div className="drawer-backdrop" onClick={() => setOpen(false)}>
       <section className="deed-sheet board-browser" role="dialog" aria-label="Browse all board spaces" onClick={(event) => event.stopPropagation()}>
         <button type="button" className="close-button" onClick={() => setOpen(false)} aria-label="Close board browser">×</button>
