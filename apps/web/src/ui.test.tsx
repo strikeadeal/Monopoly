@@ -11,6 +11,7 @@ import { Landing } from './components/Landing';
 import { LeaveRoom } from './components/LeaveRoom';
 import { Lobby } from './components/Lobby';
 import { TableLedger } from './components/TableLedger';
+import { COMPACT_LAYOUT_QUERY } from './useCompactLayout';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
@@ -183,6 +184,26 @@ describe('mobile game UI', () => {
     expect(screen.getByRole('button', { name: 'Leave room' }).querySelector('svg')).toBeInTheDocument();
   });
 
+  it('treats a landscape phone as a compact table', () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query: string) => ({ matches: query === COMPACT_LAYOUT_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia;
+    render(<GameScreen state={makeState()} {...screenProps} />);
+    const spaces = screen.getAllByTestId('board-space');
+    expect(spaces.every((space) => space.tagName === 'DIV')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Browse all spaces' })).toBeInTheDocument();
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('keeps the full table interactive when no compact query matches', () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia;
+    render(<GameScreen state={makeState()} {...screenProps} />);
+    const spaces = screen.getAllByTestId('board-space');
+    expect(spaces.every((space) => space.tagName === 'BUTTON')).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Browse all spaces' })).toBeNull();
+    window.matchMedia = originalMatchMedia;
+  });
+
   it('disables invalid deed actions and explains the first blocker', () => {
     const state = makeState();
     state.properties[39]!.ownerId = 'p1';
@@ -267,7 +288,7 @@ describe('mobile game UI', () => {
 
   it('skips movement delays when reduced motion is requested', () => {
     const originalMatchMedia = window.matchMedia;
-    window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    window.matchMedia = vi.fn((query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)', addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia;
     const initial = makeState();
     const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
     const state = reduceGame(initial, { type: 'ROLL', playerId: 'p1', dice: [1, 2] }, () => 0);

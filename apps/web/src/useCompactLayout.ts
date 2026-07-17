@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 
-const QUERY = '(max-width: 520px)';
+// Keep in sync with the compact media queries in styles.css.
+export const COMPACT_LAYOUT_QUERY =
+  '(max-width: 520px), (orientation: landscape) and (max-height: 520px) and (pointer: coarse)';
 
 export function useCompactLayout() {
-  const [compact, setCompact] = useState(() => window.matchMedia?.(QUERY).matches ?? false);
+  const [compact, setCompact] = useState(() => window.matchMedia?.(COMPACT_LAYOUT_QUERY).matches ?? false);
 
   useEffect(() => {
-    const media = window.matchMedia?.(QUERY);
+    const media = window.matchMedia?.(COMPACT_LAYOUT_QUERY);
     if (!media) return undefined;
     const update = () => setCompact(media.matches);
     update();

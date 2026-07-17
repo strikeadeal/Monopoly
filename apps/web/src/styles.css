@@ -149,7 +149,6 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .reconnect-sheet { position:fixed; z-index:25; right:0; bottom:0; left:0; width:min(100%,540px); margin:auto; padding:24px 24px calc(24px + env(safe-area-inset-bottom)); border-radius:20px 20px 0 0; background:var(--paper); text-align:center; box-shadow:0 -12px 40px rgba(23,37,31,.2); }.reconnect-sheet .spinner{margin:auto}.reconnect-sheet h2{margin:12px 0 6px}.reconnect-sheet p{color:#617068;font-size:.85rem;}
 @media (min-width:700px){.game-shell{padding-top:24px}.board-space{font-size:.54rem}.landing-shell{padding-top:36px}}
-@media (orientation:landscape) and (max-height:600px){.game-shell{display:grid;grid-template-columns:min(56vh,48%) 1fr;grid-template-rows:auto auto auto 1fr;gap:8px 10px;max-width:980px}.status-rail,.player-balances{grid-column:1/-1;margin-bottom:0}.board{grid-column:1;grid-row:3/5}.turn-card,.tab-panel{grid-column:2;grid-row:3;margin-top:0;align-self:start}.table-ledger{grid-column:2;grid-row:4;margin-top:0;align-self:start}.bottom-nav{left:auto;width:50%}}
 .space-icon { display: block; margin-bottom: 1px; line-height: 0; color: #3c5348; }
 .space-icon svg { width: clamp(9px, 3.2vw, 14px); height: auto; }
 .dice-line { margin-bottom: 8px; }
@@ -167,7 +166,7 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 @media (min-width:700px){ .space-icon svg { width: 14px; } }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
 
-/* Tabletop interface system */
+/* Tabletop interface system — intentionally overrides the base rules above. */
 :root {
   --felt: #b7d7c5;
   --paper: #f8f1df;
@@ -270,10 +269,9 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .ready-button[aria-pressed="true"] { border-color:#2e7658; background:#dce9df; box-shadow:inset 0 0 0 1px #2e7658; color:#245d47; }
 .ready-button[aria-pressed="true"]::before { margin-right:7px; content:"✓"; }
 
-@media (max-width:520px) {
-  .game-shell { padding-right:10px; padding-left:10px; }
-  .status-rail { gap:5px; }
-  .status-rail > div { font-size:.66rem; }
+/* Compact play surface — portrait phones OR landscape phones.
+   Keep in sync with COMPACT_LAYOUT_QUERY in useCompactLayout.ts */
+@media (max-width:520px), (orientation:landscape) and (max-height:520px) and (pointer:coarse) {
   .board.is-compact .space-name { display:none; }
   .board.is-compact .space-icon { margin:0; }
   .board.is-compact .space-icon svg { width:10px; }
@@ -281,9 +279,15 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
   .board.is-compact .board-center i { top:calc(50% + 44px); }
   .board.is-compact .token { width:16px; height:16px; }
   .board.is-compact .buildings { font-size:.46rem; }
+  .board-browser { max-height:88dvh; }
+}
+
+@media (max-width:520px) {
+  .game-shell { padding-right:10px; padding-left:10px; }
+  .status-rail { gap:5px; }
+  .status-rail > div { font-size:.66rem; }
   .turn-card { margin-top:10px; }
   .table-ledger { margin:10px 0 6px; }
-  .board-browser { max-height:88dvh; }
   .trade-panel .panel-heading { display:block; }
   .trade-panel .panel-heading label { margin-top:12px; }
   .trade-sides { grid-template-columns:1fr; }
@@ -316,4 +320,48 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
   .deed-sheet { border-radius:14px; }
   [data-tooltip]::after { position:absolute; z-index:30; right:0; top:calc(100% + 7px); width:max-content; max-width:150px; padding:5px 7px; visibility:hidden; border-radius:5px; background:var(--ink); color:white; content:attr(data-tooltip); font-size:.62rem; font-weight:700; opacity:0; pointer-events:none; transform:translateY(-2px); transition:opacity .14s ease,transform .14s ease; }
   [data-tooltip]:hover::after,[data-tooltip]:focus-visible::after { visibility:visible; opacity:1; transform:translateY(0); }
+}
+
+/* Landscape phone table — must stay the LAST block so it wins the cascade.
+   Keep in sync with COMPACT_LAYOUT_QUERY in useCompactLayout.ts */
+@media (orientation:landscape) and (max-height:520px) and (pointer:coarse) {
+  .game-shell {
+    display:grid;
+    grid-template-columns:min(calc(100dvh - 64px), 46vw) minmax(0,1fr);
+    gap:8px 12px;
+    width:100%;
+    max-width:none;
+    padding:max(6px, env(safe-area-inset-top))
+            calc(68px + max(6px, env(safe-area-inset-right)))
+            max(8px, env(safe-area-inset-bottom))
+            max(8px, env(safe-area-inset-left));
+  }
+  .status-rail { grid-column:1/-1; grid-row:1; margin-bottom:0; }
+  .board { grid-column:1; grid-row:2 / span 8; align-self:start; position:sticky; top:max(6px, env(safe-area-inset-top)); }
+  .player-balances, .board-navigator, .turn-card, .tab-panel, .table-ledger { grid-column:2; margin-top:0; }
+  .player-balances { margin-bottom:0; }
+  .table-ledger { margin:0; }
+  .turn-card { min-height:0; }
+  .game-shell:not(:has(.board)) .tab-panel,
+  .game-shell:not(:has(.board)) .player-balances { grid-column:1/-1; }
+
+  /* bottom nav becomes a fixed right-edge vertical rail */
+  .bottom-nav {
+    position:fixed; z-index:10;
+    top:50%; right:max(4px, env(safe-area-inset-right)); bottom:auto; left:auto;
+    transform:translateY(-50%);
+    display:grid; grid-template-columns:1fr; gap:4px;
+    width:60px; max-width:none;
+    padding:4px; border:1px solid var(--line); border-radius:12px;
+    background:rgba(248,241,223,.96);
+  }
+  .bottom-nav button { min-height:44px; padding:2px; border-radius:8px; font-size:.56rem; line-height:1.15; white-space:normal; }
+
+  /* short-viewport sheets */
+  .deed-sheet, .leave-sheet, .install-sheet { max-height:calc(100dvh - 16px); padding-top:16px; }
+  .deed-band { height:34px; margin-top:-16px; }
+  .board-browser { padding-top:16px; }
+  .reconnect-sheet { padding:14px 24px calc(12px + env(safe-area-inset-bottom)); }
+  .reconnect-sheet .spinner { width:22px; height:22px; }
+  .toast { top:max(8px, env(safe-area-inset-top)); }
 }

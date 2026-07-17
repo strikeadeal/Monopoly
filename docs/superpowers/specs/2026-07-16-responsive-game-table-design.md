@@ -23,7 +23,7 @@ The visual signature is a banker’s ledger placed on a felt game table: warm de
 
 ### Compact board
 
-- At viewports up to 520 px wide, board spaces are visual cells and are not keyboard or pointer targets.
+- At viewports up to 520 px wide, or landscape touch viewports up to 520 px tall, board spaces are visual cells and are not keyboard or pointer targets.
 - Tokens, ownership, mortgages, buildings, property colors, and current position remain visible on the board.
 - The board remains square and never causes horizontal overflow.
 
@@ -81,6 +81,20 @@ The visual signature is a banker’s ledger placed on a felt game table: warm de
 ├ latest table events                ┤
 └ fixed game navigation              ┘
 ```
+
+### Phone landscape
+
+```text
+┌ status / player / round / controls ───────────────┐┌───┐
+├ compact board   ┬ player balances                 ┤│ n │
+│ (sticky,        ├ previous | current | next       ┤│ a │
+│ height-sized,   ├ primary turn action             ┤│ v │
+│ read-only)      └ latest table events (scrolls)   ┘└───┘
+```
+
+The board stays pinned to the left at the viewport height while the action
+column scrolls beside it. Game navigation becomes a fixed vertical rail on
+the right edge so no vertical space is spent on a bottom bar.
 
 ### Desktop
 
