@@ -6,6 +6,9 @@ test('two isolated phones create, join, start, and recover the same room', async
   const guestContext = await browser.newContext();
   const host = await hostContext.newPage();
   const guest = await guestContext.newPage();
+  const pageErrors: string[] = [];
+  host.on('pageerror', (error) => pageErrors.push(`host: ${error.message}`));
+  guest.on('pageerror', (error) => pageErrors.push(`guest: ${error.message}`));
 
   await host.goto('/#/');
   await host.getByLabel('Your name').fill('Alex');
@@ -48,7 +51,7 @@ test('two isolated phones create, join, start, and recover the same room', async
       await expect(host.locator('.board-space .space-name').first()).toBeHidden();
     }
     await expect(host.getByRole('button', { name: 'Current space: GO' })).toBeVisible();
-    await host.getByRole('button', { name: 'Browse all spaces' }).click();
+    await host.getByRole('button', { name: 'Open board directory' }).click();
     const boardBrowser = host.getByRole('dialog', { name: 'Browse all board spaces' });
     await expect(boardBrowser).toBeVisible();
     await expect(boardBrowser.getByRole('button')).toHaveCount(41);
@@ -77,18 +80,58 @@ test('two isolated phones create, join, start, and recover the same room', async
       const board = document.querySelector<HTMLElement>('.board')!.getBoundingClientRect();
       const turnCard = document.querySelector<HTMLElement>('.turn-card')!.getBoundingClientRect();
       const nav = document.querySelector<HTMLElement>('.bottom-nav')!.getBoundingClientRect();
+      const labels = [...document.querySelectorAll<HTMLElement>('.board-space .space-name')];
       return {
         boardLeftOfActions: board.right <= turnCard.left,
         boardFitsHeight: board.bottom <= innerHeight + 1,
         navIsVerticalRail: nav.width < nav.height,
-        navClearOfActions: nav.left >= turnCard.right
+        navClearOfActions: nav.left >= turnCard.right,
+        pageFitsViewport: document.documentElement.scrollHeight <= innerHeight && document.body.scrollHeight <= innerHeight,
+        labelOverflow: labels.filter((label) => label.scrollWidth > label.clientWidth + 1 || label.scrollHeight > label.clientHeight + 1).map((label) => ({
+          text: label.textContent,
+          client: [label.clientWidth, label.clientHeight],
+          scroll: [label.scrollWidth, label.scrollHeight]
+        })),
+        awkwardWraps: labels.filter((label) => {
+          if (label.textContent?.includes(' ')) return false;
+          const range = document.createRange();
+          range.selectNodeContents(label);
+          return range.getClientRects().length > 1;
+        }).map((label) => label.textContent),
+        nearbyOverflow: [...document.querySelectorAll<HTMLElement>('.nearby-spaces strong')]
+          .filter((label) => label.scrollWidth > label.clientWidth + 1)
+          .map((label) => label.textContent)
       };
     });
     expect(landscape.boardLeftOfActions).toBe(true);
     expect(landscape.boardFitsHeight).toBe(true);
     expect(landscape.navIsVerticalRail).toBe(true);
     expect(landscape.navClearOfActions).toBe(true);
+    expect(landscape.pageFitsViewport).toBe(true);
+    expect(landscape.labelOverflow).toEqual([]);
+    expect(landscape.awkwardWraps).toEqual([]);
+    expect(landscape.nearbyOverflow).toEqual([]);
+    await expect(host.locator('.table-ledger')).toHaveClass(/is-strip/u);
+    await expect(host.locator('.bottom-nav button svg')).toHaveCount(4);
     await expect(host.getByRole('button', { name: 'ROLL ◆ ◆' })).toBeInViewport();
+
+    const sectionNav = host.getByRole('navigation', { name: 'Game sections' });
+    await sectionNav.getByRole('button', { name: 'Assets', exact: true }).click();
+    await expect(host.getByRole('heading', { name: 'Your deeds' })).toBeVisible();
+    const assetLayout = await host.evaluate(() => {
+      const panel = document.querySelector<HTMLElement>('.tab-panel')!.getBoundingClientRect();
+      return { top: panel.top, bottom: panel.bottom, viewport: innerHeight, scrollY };
+    });
+    expect(assetLayout.top).toBeGreaterThanOrEqual(0);
+    expect(assetLayout.bottom).toBeLessThanOrEqual(assetLayout.viewport + 1);
+    expect(assetLayout.scrollY).toBe(0);
+    await sectionNav.getByRole('button', { name: 'Game', exact: true }).click();
+    await expect(host.getByRole('button', { name: 'ROLL ◆ ◆' })).toBeInViewport();
+
+    await hostContext.setOffline(true);
+    await expect(host.getByRole('heading', { name: 'Reconnecting to the table' })).toBeVisible();
+    await hostContext.setOffline(false);
+    await expect(host.getByText('Live')).toBeVisible({ timeout: 10_000 });
   }
 
   await host.getByRole('button', { name: 'ROLL ◆ ◆' }).click();
@@ -139,6 +182,7 @@ test('two isolated phones create, join, start, and recover the same room', async
   await host.reload();
   await expect(host.getByRole('heading', { name: 'Alex wins' })).toBeVisible();
   await expect(host.getByText('Live')).toBeVisible();
+  expect(pageErrors).toEqual([]);
   await hostContext.close();
   await guestContext.close();
 });

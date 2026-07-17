@@ -11,9 +11,9 @@ import { Landing } from './components/Landing';
 import { LeaveRoom } from './components/LeaveRoom';
 import { Lobby } from './components/Lobby';
 import { TableLedger } from './components/TableLedger';
-import { COMPACT_LAYOUT_QUERY } from './useCompactLayout';
+import { COMPACT_LAYOUT_QUERY, LANDSCAPE_PHONE_QUERY } from './useCompactLayout';
 
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 const makeState = () => createGame([
   { id: 'p1', name: 'Alex', token: 'rocket' },
@@ -39,6 +39,17 @@ describe('mobile game UI', () => {
     expect(screen.queryByRole('button', { name: 'GO' })).toBeNull();
   });
 
+  it('uses a deliberate 40-space compact label set instead of clipping names', () => {
+    const state = makeState();
+    const { container } = render(<Board compact state={state} selectedIndex={null} onSelect={() => undefined} />);
+    expect([...container.querySelectorAll('.space-name')].map((label) => label.textContent)).toEqual([
+      'GO', 'Armad.', 'Chest', 'Midl.', 'Inc Tax', 'Read. RR', 'Gosn.', 'Chance', 'Balga', 'Rocki.',
+      'Jail', 'Cann.', 'Elec.', 'Madd.', 'Thorn.', 'Penn. RR', 'Hillarys', 'Chest', 'Vic. Pk', 'Baysw.',
+      'Free Pkg', 'Mayl.', 'Chance', 'Mt Hawt.', 'Scar.', 'B&O RR', 'Mt Law.', 'Subiaco', 'Water', 'Clare.',
+      'Go Jail', 'Apple.', 'Cott.', 'Chest', 'City Bch', 'Short Ln', 'Chance', 'Dalk.', 'Lux Tax', 'Pepperm.'
+    ]);
+  });
+
   it('offers legible nearby spaces and an all-spaces browser', () => {
     const state = makeState();
     const onSelect = vi.fn();
@@ -46,7 +57,7 @@ describe('mobile game UI', () => {
     expect(screen.getByRole('button', { name: 'Previous space: Peppermint Grove' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Current space: GO' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next space: Armadale' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Browse all spaces' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open board directory' }));
     expect(screen.getByRole('dialog', { name: 'Browse all board spaces' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cottesloe, street, available' }));
     expect(onSelect).toHaveBeenCalledWith(32);
@@ -178,6 +189,18 @@ describe('mobile game UI', () => {
     expect(screen.queryByText('First event.')).toBeNull();
   });
 
+  it('collapses the table ledger to the latest event in the landscape strip', () => {
+    const state = makeState();
+    state.activities = [
+      { id: '2', at: 2, text: 'Latest event.', tone: 'success' },
+      { id: '1', at: 1, text: 'Earlier event.' }
+    ];
+    const { container } = render(<TableLedger state={state} variant="strip" />);
+    expect(container.querySelector('.table-ledger.is-strip')).toBeInTheDocument();
+    expect(screen.getByText('Latest event.')).toBeInTheDocument();
+    expect(screen.queryByText('Earlier event.')).toBeNull();
+  });
+
   it('renders explicit icons for pause and compact leave controls', () => {
     render(<GameScreen state={makeState()} {...screenProps} />);
     expect(screen.getByRole('button', { name: 'Pause game' }).querySelector('svg')).toBeInTheDocument();
@@ -185,23 +208,26 @@ describe('mobile game UI', () => {
   });
 
   it('treats a landscape phone as a compact table', () => {
-    const originalMatchMedia = window.matchMedia;
-    window.matchMedia = vi.fn((query: string) => ({ matches: query === COMPACT_LAYOUT_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia;
-    render(<GameScreen state={makeState()} {...screenProps} />);
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({ matches: query === COMPACT_LAYOUT_QUERY || query === LANDSCAPE_PHONE_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia);
+    const { container } = render(<GameScreen state={makeState()} {...screenProps} />);
     const spaces = screen.getAllByTestId('board-space');
     expect(spaces.every((space) => space.tagName === 'DIV')).toBe(true);
-    expect(screen.getByRole('button', { name: 'Browse all spaces' })).toBeInTheDocument();
-    window.matchMedia = originalMatchMedia;
+    expect(container.querySelector('.game-shell.is-landscape-phone')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open board directory' })).toBeInTheDocument();
+    expect(container.querySelector('.table-ledger.is-strip')).toBeInTheDocument();
+    for (const name of ['Game', 'Assets', 'Trade', 'Activity']) {
+      expect(screen.getByRole('button', { name }).querySelector('svg')).toBeInTheDocument();
+    }
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
   });
 
   it('keeps the full table interactive when no compact query matches', () => {
-    const originalMatchMedia = window.matchMedia;
-    window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia;
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia);
     render(<GameScreen state={makeState()} {...screenProps} />);
     const spaces = screen.getAllByTestId('board-space');
     expect(spaces.every((space) => space.tagName === 'BUTTON')).toBe(true);
-    expect(screen.queryByRole('button', { name: 'Browse all spaces' })).toBeNull();
-    window.matchMedia = originalMatchMedia;
+    expect(screen.queryByRole('button', { name: 'Open board directory' })).toBeNull();
   });
 
   it('disables invalid deed actions and explains the first blocker', () => {
@@ -219,7 +245,7 @@ describe('mobile game UI', () => {
     state.properties[37]!.ownerId = 'p1';
     state.properties[39]!.ownerId = 'p1';
     render(<GameScreen state={state} {...screenProps} />);
-    fireEvent.click(screen.getByRole('button', { name: 'My assets' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Assets' }));
     expect(screen.getByRole('heading', { name: 'Dark blue' })).toBeInTheDocument();
     expect(screen.getByText('2 of 2 deeds')).toBeInTheDocument();
   });

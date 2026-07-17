@@ -8,10 +8,11 @@ import { DiceRoll } from './Dice';
 import { LeaveRoom } from './LeaveRoom';
 import { PlayerBalances } from './PlayerBalances';
 import { TableLedger } from './TableLedger';
-import { useCompactLayout } from '../useCompactLayout';
+import { useCompactLayout, useLandscapePhone } from '../useCompactLayout';
 import { useMovementAnimation } from '../useMovementAnimation';
 
 type Sender = (command: Record<string, unknown> & { type: string }) => void;
+type GameSection = 'game' | 'assets' | 'trade' | 'activity';
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const groupNames: Record<string, string> = { brown: 'Brown', 'light-blue': 'Light blue', pink: 'Pink', orange: 'Orange', red: 'Red', yellow: 'Yellow', green: 'Green', 'dark-blue': 'Dark blue', railroad: 'Railroads', utility: 'Utilities' };
 const groupColors: Record<string, string> = { brown: '#8b5a3c', 'light-blue': '#63b8d5', pink: '#cf5b9d', orange: '#e98a32', red: '#c9423b', yellow: '#e0bd3d', green: '#438d64', 'dark-blue': '#315b92', railroad: '#5b625e', utility: '#b08a45' };
@@ -21,6 +22,13 @@ function PauseIcon({ paused }: { paused: boolean }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true">
     {paused ? <path d="m8 5 11 7-11 7Z" /> : <path d="M8 5v14M16 5v14" />}
   </svg>;
+}
+
+function SectionIcon({ section }: { section: GameSection }) {
+  if (section === 'game') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10l3 6-2 8-4-3h-4l-4 3-2-8 3-6Zm1 5v4m-2-2h4m6-1v.01m2 3v.01" /></svg>;
+  if (section === 'assets') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5V3Zm11 0v4h3M8 11h8M8 15h8" /></svg>;
+  if (section === 'trade') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 8 4-4v3h9a3 3 0 0 1 3 3M20 16l-4 4v-3H7a3 3 0 0 1-3-3" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14M7 5v.01M7 12v.01M7 19v.01" /></svg>;
 }
 
 function PropertySheet({ state, index, playerId, send, onClose }: { state: GameState; index: number; playerId: string; send: Sender; onClose: () => void }) {
@@ -87,9 +95,10 @@ function Trade({ state, playerId, send }: { state: GameState; playerId: string; 
 }
 
 export function GameScreen({ state, playerId, status, error, send, clearError, onLeave, leaving, leaveError }: { state: GameState; playerId: string; status: string; error: string | null; send: Sender; clearError: () => void; onLeave: () => void | Promise<void>; leaving: boolean; leaveError: string | null }) {
-  const [selected, setSelected] = useState<number | null>(null); const [tab, setTab] = useState<'game' | 'assets' | 'trade' | 'activity'>('game');
+  const [selected, setSelected] = useState<number | null>(null); const [tab, setTab] = useState<GameSection>('game');
   const [dismissedDrawId, setDismissedDrawId] = useState<string | null>(null);
   const compact = useCompactLayout();
+  const landscapePhone = useLandscapePhone();
   const rolling = useDiceAnimation(state.lastRoll);
   const movement = useMovementAnimation(state);
   const lastCard = state.lastCard ?? null;
@@ -101,5 +110,22 @@ export function GameScreen({ state, playerId, status, error, send, clearError, o
   const movementOverridesActions = movement.isPresenting && state.phase.type !== 'paused' && state.phase.type !== 'finished';
   const showCard = lastCard && lastCard.drawId !== dismissedDrawId && (!movement.isPresenting || movement.waitingForCard);
   const closeCard = () => { if (!lastCard) return; setDismissedDrawId(lastCard.drawId); movement.resumeAfterCard(); };
-  return <main className="game-shell"><span className="sr-only" aria-live="polite">{movement.announcement}</span><header className="status-rail"><div><span className={`status-dot ${status}`} />{status === 'online' ? 'Live' : 'Reconnecting'}</div><strong>{current?.name}{current?.id === playerId ? ' · your turn' : ' · playing'}</strong><span>{timer ?? `Round ${state.round}`}</span>{state.hostPlayerId === playerId && state.phase.type !== 'finished' ? <button className="table-control" aria-label={state.phase.type === 'paused' ? 'Resume game' : 'Pause game'} data-tooltip={state.phase.type === 'paused' ? 'Resume game' : 'Pause game'} onClick={() => send({ type: state.phase.type === 'paused' ? 'RESUME' : 'PAUSE', now: Date.now() })}><PauseIcon paused={state.phase.type === 'paused'} /></button> : <span />}<LeaveRoom compact busy={leaving} error={leaveError} onConfirm={onLeave} /></header><PlayerBalances state={state} playerId={playerId} />{error ? <div className="toast" role="alert"><span>{error}</span><button onClick={clearError}>×</button></div> : null}{tab === 'game' ? <><Board compact={compact} state={state} selectedIndex={selected} onSelect={setSelected} displayPositions={movement.displayPositions} movingPlayerId={movement.movingPlayerId} tokenMotion={movement.tokenMotion} />{compact ? <BoardNavigator state={state} onSelect={setSelected} /> : null}{movementOverridesActions && movingPlayer ? <MovementTurnCard state={state} playerName={movingPlayer.name} rolling={rolling} /> : <TurnActions state={state} playerId={playerId} send={send} rolling={rolling} />}<TableLedger state={state} /></> : null}{tab === 'assets' ? <Assets state={state} playerId={playerId} send={send} /> : null}{tab === 'trade' ? <Trade state={state} playerId={playerId} send={send} /> : null}{tab === 'activity' ? <section className="tab-panel"><h2>Activity</h2><ActivityTimeline entries={state.activities} /></section> : null}<nav className="bottom-nav" aria-label="Game sections">{(['game', 'assets', 'trade', 'activity'] as const).map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'assets' ? 'My assets' : item[0]!.toUpperCase() + item.slice(1)}</button>)}</nav>{selected !== null ? <PropertySheet state={state} index={selected} playerId={playerId} send={send} onClose={() => setSelected(null)} /> : null}{showCard ? <CardReveal state={state} draw={lastCard} onClose={closeCard} /> : null}{status !== 'online' ? <div className="reconnect-sheet"><div className="spinner" /><h2>Reconnecting to the table</h2><p>Your last confirmed board is safe. Controls will return after a fresh server snapshot.</p></div> : null}</main>;
+  useEffect(() => {
+    if (landscapePhone) window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [landscapePhone, tab]);
+  const sections: GameSection[] = ['game', 'assets', 'trade', 'activity'];
+  return <main className={`game-shell${landscapePhone ? ' is-landscape-phone' : ''}`}>
+    <span className="sr-only" aria-live="polite">{movement.announcement}</span>
+    <header className="status-rail"><div><span className={`status-dot ${status}`} />{status === 'online' ? 'Live' : 'Reconnecting'}</div><strong>{current?.name}{current?.id === playerId ? ' · your turn' : ' · playing'}</strong><span>{timer ?? `Round ${state.round}`}</span>{state.hostPlayerId === playerId && state.phase.type !== 'finished' ? <button className="table-control" aria-label={state.phase.type === 'paused' ? 'Resume game' : 'Pause game'} data-tooltip={state.phase.type === 'paused' ? 'Resume game' : 'Pause game'} onClick={() => send({ type: state.phase.type === 'paused' ? 'RESUME' : 'PAUSE', now: Date.now() })}><PauseIcon paused={state.phase.type === 'paused'} /></button> : <span />}<LeaveRoom compact busy={leaving} error={leaveError} onConfirm={onLeave} /></header>
+    <PlayerBalances state={state} playerId={playerId} />
+    {error ? <div className="toast" role="alert"><span>{error}</span><button onClick={clearError}>×</button></div> : null}
+    {tab === 'game' ? <><Board compact={compact} state={state} selectedIndex={selected} onSelect={setSelected} displayPositions={movement.displayPositions} movingPlayerId={movement.movingPlayerId} tokenMotion={movement.tokenMotion} />{compact ? <BoardNavigator state={state} onSelect={setSelected} /> : null}{movementOverridesActions && movingPlayer ? <MovementTurnCard state={state} playerName={movingPlayer.name} rolling={rolling} /> : <TurnActions state={state} playerId={playerId} send={send} rolling={rolling} />}<TableLedger state={state} variant={landscapePhone ? 'strip' : 'panel'} /></> : null}
+    {tab === 'assets' ? <Assets state={state} playerId={playerId} send={send} /> : null}
+    {tab === 'trade' ? <Trade state={state} playerId={playerId} send={send} /> : null}
+    {tab === 'activity' ? <section className="tab-panel"><h2>Activity</h2><ActivityTimeline entries={state.activities} /></section> : null}
+    <nav className="bottom-nav" aria-label="Game sections">{sections.map((item) => { const label = item[0]!.toUpperCase() + item.slice(1); return <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}><SectionIcon section={item} /><span>{label}</span></button>; })}</nav>
+    {selected !== null ? <PropertySheet state={state} index={selected} playerId={playerId} send={send} onClose={() => setSelected(null)} /> : null}
+    {showCard ? <CardReveal state={state} draw={lastCard} onClose={closeCard} /> : null}
+    {status !== 'online' ? <div className="reconnect-sheet"><div className="spinner" /><h2>Reconnecting to the table</h2><p>Your last confirmed board is safe. Controls will return after a fresh server snapshot.</p></div> : null}
+  </main>;
 }

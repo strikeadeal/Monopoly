@@ -1,8 +1,8 @@
 import type { GameState } from '@monopoly/game';
 
-export function TableLedger({ state }: { state: GameState }) {
-  const entries = state.activities.slice(0, 3);
-  return <section className="table-ledger" aria-label="Latest at the table">
+export function TableLedger({ state, variant = 'panel' }: { state: GameState; variant?: 'panel' | 'strip' }) {
+  const entries = state.activities.slice(0, variant === 'strip' ? 1 : 3);
+  return <section className={`table-ledger${variant === 'strip' ? ' is-strip' : ''}`} aria-label="Latest at the table">
     <header>
       <h2>Latest at the table</h2>
       <span>{state.round > 0 ? `Round ${state.round}` : 'Lobby'}</span>
