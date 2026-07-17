@@ -39,7 +39,8 @@ test('two isolated phones create, join, start, and recover the same room', async
   await expect(guest.getByLabel('Sam, you, $1,500')).toBeVisible();
   await expect(host.getByRole('region', { name: 'Latest at the table' })).toBeVisible();
   const viewport = host.viewportSize();
-  if (viewport && viewport.width <= 520) {
+  const isLandscapePhone = Boolean(viewport && viewport.width > viewport.height && viewport.height <= 520);
+  if (viewport && (viewport.width <= 520 || isLandscapePhone)) {
     await expect(host.locator('button[data-testid="board-space"]')).toHaveCount(0);
     await expect(host.getByRole('button', { name: 'Current space: GO' })).toBeVisible();
     await host.getByRole('button', { name: 'Browse all spaces' }).click();
@@ -64,6 +65,26 @@ test('two isolated phones create, join, start, and recover the same room', async
   expect(layout.horizontalOverflow).toBe(false);
   expect(layout.squareDelta).toBeLessThan(1);
   expect(layout.controlsInsidePage).toBe(true);
+
+  if (isLandscapePhone) {
+    const landscape = await host.evaluate(() => {
+      window.scrollTo(0, 0);
+      const board = document.querySelector<HTMLElement>('.board')!.getBoundingClientRect();
+      const turnCard = document.querySelector<HTMLElement>('.turn-card')!.getBoundingClientRect();
+      const nav = document.querySelector<HTMLElement>('.bottom-nav')!.getBoundingClientRect();
+      return {
+        boardLeftOfActions: board.right <= turnCard.left,
+        boardFitsHeight: board.bottom <= innerHeight + 1,
+        navIsVerticalRail: nav.width < nav.height,
+        navClearOfActions: nav.left >= turnCard.right
+      };
+    });
+    expect(landscape.boardLeftOfActions).toBe(true);
+    expect(landscape.boardFitsHeight).toBe(true);
+    expect(landscape.navIsVerticalRail).toBe(true);
+    expect(landscape.navClearOfActions).toBe(true);
+    await expect(host.getByRole('button', { name: 'ROLL ◆ ◆' })).toBeInViewport();
+  }
 
   await host.getByRole('button', { name: 'ROLL ◆ ◆' }).click();
   await expect(host.getByRole('button', { name: 'ROLL ◆ ◆' })).not.toBeVisible();
