@@ -42,12 +42,28 @@ describe('mobile game UI', () => {
   it('uses a deliberate 40-space compact label set instead of clipping names', () => {
     const state = makeState();
     const { container } = render(<Board compact state={state} selectedIndex={null} onSelect={() => undefined} />);
-    expect([...container.querySelectorAll('.space-name')].map((label) => label.textContent)).toEqual([
+    expect([...container.querySelectorAll('.space-name-compact')].map((label) => label.textContent)).toEqual([
       'GO', 'Armad.', 'Chest', 'Midl.', 'Inc Tax', 'Read. RR', 'Gosn.', 'Chance', 'Balga', 'Rocki.',
       'Jail', 'Cann.', 'Elec.', 'Madd.', 'Thorn.', 'Penn. RR', 'Hillarys', 'Chest', 'Vic. Pk', 'Baysw.',
       'Free Pkg', 'Mayl.', 'Chance', 'Mt Hawt.', 'Scar.', 'B&O RR', 'Mt Law.', 'Subiaco', 'Water', 'Clare.',
       'Go Jail', 'Apple.', 'Cott.', 'Chest', 'City Bch', 'Short Ln', 'Chance', 'Dalk.', 'Lux Tax', 'Pepperm.'
     ]);
+  });
+
+  it('keeps the full 40-space label set available for the landscape board', () => {
+    const state = makeState();
+    const { container } = render(<Board compact state={state} selectedIndex={null} onSelect={() => undefined} />);
+    expect([...container.querySelectorAll('.space-name-full')].map((label) => label.textContent)).toEqual(BOARD.map((space) => space.name));
+  });
+
+  it('marks each board edge so landscape property bands follow the board perimeter', () => {
+    const state = makeState();
+    render(<Board compact state={state} selectedIndex={null} onSelect={() => undefined} />);
+    const spaces = screen.getAllByTestId('board-space');
+    expect(spaces[1]).toHaveClass('edge-bottom');
+    expect(spaces[11]).toHaveClass('edge-left');
+    expect(spaces[21]).toHaveClass('edge-top');
+    expect(spaces[31]).toHaveClass('edge-right');
   });
 
   it('offers legible nearby spaces and an all-spaces browser', () => {
@@ -64,6 +80,13 @@ describe('mobile game UI', () => {
     expect(screen.queryByRole('dialog', { name: 'Browse all board spaces' })).toBeNull();
   });
 
+  it('adapts the current-space treatment for long property names', () => {
+    const state = makeState();
+    state.players[0]!.position = 5;
+    render(<BoardNavigator state={state} onSelect={() => undefined} />);
+    expect(screen.getByRole('button', { name: 'Current space: Reading Railroad' })).toHaveClass('is-long');
+  });
+
   it('turns the board center into live table status', () => {
     const state = makeState();
     const { container } = render(<Board state={state} selectedIndex={null} onSelect={() => undefined} />);
@@ -72,10 +95,11 @@ describe('mobile game UI', () => {
     expect(container.querySelector('.board-center')).toHaveTextContent('Current turn');
   });
 
-  it('marks the jail, chance, and community chest spaces with icons', () => {
+  it('gives every non-street board space its concept icon', () => {
     const state = makeState();
     const { container } = render(<Board state={state} selectedIndex={null} onSelect={() => undefined} />);
-    expect(container.querySelectorAll('.space-icon')).toHaveLength(8);
+    const expectedTypes = BOARD.filter((space) => space.type !== 'street').map((space) => space.type);
+    expect([...container.querySelectorAll('[data-space-icon]')].map((icon) => icon.getAttribute('data-space-icon'))).toEqual(expectedTypes);
     expect(screen.getAllByTestId('board-space')).toHaveLength(BOARD.length);
   });
 
@@ -216,8 +240,8 @@ describe('mobile game UI', () => {
     expect(container.querySelector('.game-shell.is-landscape-phone')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open board directory' })).toBeInTheDocument();
     expect(container.querySelector('.table-ledger.is-strip')).toBeInTheDocument();
-    for (const name of ['Game', 'Assets', 'Trade', 'Activity']) {
-      expect(screen.getByRole('button', { name }).querySelector('svg')).toBeInTheDocument();
+    for (const [name, icon] of [['Game', 'dice'], ['Assets', 'deeds'], ['Trade', 'handshake'], ['Activity', 'clipboard']] as const) {
+      expect(screen.getByRole('button', { name }).querySelector('svg')).toHaveAttribute('data-section-icon', icon);
     }
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
   });

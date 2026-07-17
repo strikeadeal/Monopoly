@@ -25,10 +25,10 @@ function PauseIcon({ paused }: { paused: boolean }) {
 }
 
 function SectionIcon({ section }: { section: GameSection }) {
-  if (section === 'game') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10l3 6-2 8-4-3h-4l-4 3-2-8 3-6Zm1 5v4m-2-2h4m6-1v.01m2 3v.01" /></svg>;
-  if (section === 'assets') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5V3Zm11 0v4h3M8 11h8M8 15h8" /></svg>;
-  if (section === 'trade') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 8 4-4v3h9a3 3 0 0 1 3 3M20 16l-4 4v-3H7a3 3 0 0 1-3-3" /></svg>;
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14M7 5v.01M7 12v.01M7 19v.01" /></svg>;
+  if (section === 'game') return <svg data-section-icon="dice" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 0v9m8-4.5-8 4.5-8-4.5M12 12v9m-4-11v.01m8-3v.01m1 7v.01m-2 3v.01" /></svg>;
+  if (section === 'assets') return <svg data-section-icon="deeds" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4V8Zm3 0V5h10v3M4 12h16M10 12v2h4v-2" /><circle cx="18" cy="18" r="3" /></svg>;
+  if (section === 'trade') return <svg data-section-icon="handshake" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 8 4-3 4 2 2-1 8 4-3 5-3 3-7-5-3 1-3-4 3-4Zm7 4 5 4m-7-2 4 3m2-8-3 3-2-1 3-4" /></svg>;
+  return <svg data-section-icon="clipboard" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5H5v16h14V5h-2M9 5V3h6v2H9Zm0 5h6M9 14h6M9 18h4" /></svg>;
 }
 
 function PropertySheet({ state, index, playerId, send, onClose }: { state: GameState; index: number; playerId: string; send: Sender; onClose: () => void }) {

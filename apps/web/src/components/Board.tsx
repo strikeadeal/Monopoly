@@ -4,14 +4,18 @@ import { SpaceIcon } from './SpaceIcon';
 import { TokenIcon } from './TokenIcon';
 import type { TokenMotion } from '../useMovementAnimation';
 
-const ICON_SPACES = ['jail', 'go-to-jail', 'chance', 'community-chest'];
-
 const colors: Record<string, string> = { brown: '#8b5a3c', 'light-blue': '#63b8d5', pink: '#cf5b9d', orange: '#e98a32', red: '#c9423b', yellow: '#e0bd3d', green: '#438d64', 'dark-blue': '#315b92' };
 function coordinates(index: number) {
   if (index <= 10) return { row: 11, col: 11 - index };
   if (index <= 20) return { row: 21 - index, col: 1 };
   if (index <= 30) return { row: 1, col: index - 19 };
   return { row: index - 29, col: 11 };
+}
+function edge(index: number) {
+  if (index <= 10) return 'bottom';
+  if (index <= 20) return 'left';
+  if (index <= 30) return 'top';
+  return 'right';
 }
 const shortName = (name: string) => name.replace(' Avenue', '').replace(' Railroad', ' RR').replace('Community Chest', 'Chest').replace('Free Parking', 'Free').replace('Just Visiting', 'Visit');
 const COMPACT_SPACE_NAMES = [
@@ -30,12 +34,15 @@ export function Board({ state, selectedIndex, onSelect, displayPositions = {}, m
       const property = state.properties[space.index];
       const streetColor = space.type === 'street' ? colors[(space as StreetSpace).color] : undefined;
       const players = state.players.filter((player) => !player.bankrupt && (displayPositions[player.id] ?? player.position) === space.index);
-      const className = `board-space ${selectedIndex === space.index ? 'is-selected' : ''} ${property?.mortgaged ? 'is-mortgaged' : ''} ${players.length ? 'has-player' : ''} ${players.some((player) => player.id === state.currentPlayerId) ? 'is-current-space' : ''}`;
+      const className = `board-space edge-${edge(space.index)} ${space.index % 10 === 0 ? 'is-corner' : ''} ${selectedIndex === space.index ? 'is-selected' : ''} ${property?.mortgaged ? 'is-mortgaged' : ''} ${players.length ? 'has-player' : ''} ${players.some((player) => player.id === state.currentPlayerId) ? 'is-current-space' : ''}`;
       const style = { '--row': row, '--col': col, '--street': streetColor ?? '#d8d1bd' } as CSSProperties;
       const content = <>
         {space.type === 'street' ? <span className="property-band" /> : null}
-        {ICON_SPACES.includes(space.type) ? <span className="space-icon"><SpaceIcon type={space.type} /></span> : null}
-        <span className="space-name">{compact ? COMPACT_SPACE_NAMES[space.index] : shortName(space.name)}</span>
+        {space.type !== 'street' ? <span className="space-icon"><SpaceIcon type={space.type} name={space.name} /></span> : null}
+        {compact ? <>
+          <span className="space-name space-name-compact" aria-hidden="true">{COMPACT_SPACE_NAMES[space.index]}</span>
+          <span className="space-name space-name-full" aria-hidden="true">{space.name}</span>
+        </> : <span className="space-name space-name-full" aria-hidden="true">{shortName(space.name)}</span>}
         {property?.buildings ? <span className="buildings">{property.buildings === 5 ? '◆' : '▪'.repeat(property.buildings)}</span> : null}
         <span className="space-tokens">{players.map((player) => <span key={player.id} className={`token token-${state.players.indexOf(player) + 1} ${player.id === movingPlayerId && tokenMotion ? `is-${tokenMotion}` : ''}`} aria-label={`${player.name} on ${space.name}`}><TokenIcon token={player.token} size={12} /></span>)}</span>
       </>;

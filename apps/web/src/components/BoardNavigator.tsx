@@ -5,7 +5,7 @@ const colors: Record<string, string> = { brown: '#8b5a3c', 'light-blue': '#63b8d
 const typeLabel = (type: string) => type.replaceAll('-', ' ');
 
 function DirectoryIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2" /><path d="M8 4v16M16 4v16M4 8h16M4 16h16" /><rect x="8" y="8" width="8" height="8" /></svg>;
 }
 
 export function BoardNavigator({ state, onSelect }: { state: GameState; onSelect: (index: number) => void }) {
@@ -26,7 +26,7 @@ export function BoardNavigator({ state, onSelect }: { state: GameState; onSelect
         const color = space.type === 'street' ? colors[(space as StreetSpace).color] : '#b08a45';
         return <button
           type="button"
-          className={label === 'Current' ? 'is-current' : ''}
+          className={`${label === 'Current' ? 'is-current' : ''}${label === 'Current' && space.name.length > 10 ? ' is-long' : ''}`}
           key={label}
           onClick={() => onSelect(index)}
           aria-label={`${label} space: ${space.name}`}
