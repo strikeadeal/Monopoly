@@ -25,7 +25,7 @@ The visual signature is a banker’s ledger placed on a felt game table: warm de
 
 - At viewports up to 520 px wide, or landscape touch viewports up to 520 px tall, board spaces are visual cells and are not keyboard or pointer targets.
 - Tokens, ownership, mortgages, buildings, property colors, and current position remain visible on the board.
-- The board remains square and never causes horizontal overflow.
+- The board remains square in portrait and desktop layouts. In phone landscape it follows the accepted tabletop concept at approximately 1.17:1 so the full board, action rail, and navigation fit one viewport without horizontal overflow.
 
 ### Neighborhood strip
 
@@ -92,9 +92,12 @@ The visual signature is a banker’s ledger placed on a felt game table: warm de
 │ read-only)      └ latest table events (scrolls)   ┘└───┘
 ```
 
-The board stays pinned to the left at the viewport height while the action
-column scrolls beside it. Game navigation becomes a fixed vertical rail on
-the right edge so no vertical space is spent on a bottom bar.
+The board stays pinned to the left and uses 44.7% of the viewport width by
+83.5% of the viewport height. The action column begins at 49.7% of the
+viewport, and game navigation becomes a fixed vertical rail on the right
+edge. The full-width status header, balance cards, nearby-space directory,
+turn card, and latest event strip keep the same proportional geometry at
+750×342 and equivalent short landscape viewports.
 
 ### Desktop
 
@@ -121,4 +124,3 @@ the right edge so no vertical space is spent on a bottom bar.
 - Update E2E checks for the mobile overview and board browser.
 - Run lint, TypeScript, Vitest, production builds, PWA validation, Worker dry run, and Playwright on iPhone portrait, iPhone landscape, and desktop.
 - Play ten live turns against the local Durable Object and verify reload/reconnect, console health, and API health.
-

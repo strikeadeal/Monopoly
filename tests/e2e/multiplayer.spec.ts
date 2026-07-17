@@ -46,7 +46,7 @@ test('two isolated phones create, join, start, and recover the same room', async
   if (viewport && (viewport.width <= 520 || isLandscapePhone)) {
     await expect(host.locator('button[data-testid="board-space"]')).toHaveCount(0);
     if (isLandscapePhone) {
-      await expect(host.locator('.board-space .space-name').first()).toBeVisible();
+      await expect(host.locator('.board-space .space-name-full').first()).toBeVisible();
     } else {
       await expect(host.locator('.board-space .space-name').first()).toBeHidden();
     }
@@ -67,11 +67,17 @@ test('two isolated phones create, join, start, and recover the same room', async
     return {
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       squareDelta: Math.abs(board.width - board.height),
+      boardAspect: board.width / board.height,
       controlsInsidePage: actions.right <= document.documentElement.scrollWidth && actions.bottom <= document.documentElement.scrollHeight
     };
   });
   expect(layout.horizontalOverflow).toBe(false);
-  expect(layout.squareDelta).toBeLessThan(1);
+  if (isLandscapePhone) {
+    expect(layout.boardAspect).toBeGreaterThan(1.14);
+    expect(layout.boardAspect).toBeLessThan(1.2);
+  } else {
+    expect(layout.squareDelta).toBeLessThan(1);
+  }
   expect(layout.controlsInsidePage).toBe(true);
 
   if (isLandscapePhone) {
@@ -80,7 +86,11 @@ test('two isolated phones create, join, start, and recover the same room', async
       const board = document.querySelector<HTMLElement>('.board')!.getBoundingClientRect();
       const turnCard = document.querySelector<HTMLElement>('.turn-card')!.getBoundingClientRect();
       const nav = document.querySelector<HTMLElement>('.bottom-nav')!.getBoundingClientRect();
-      const labels = [...document.querySelectorAll<HTMLElement>('.board-space .space-name')];
+      const labels = [...document.querySelectorAll<HTMLElement>('.board-space .space-name-full')];
+      const status = document.querySelector<HTMLElement>('.status-rail')!.getBoundingClientRect();
+      const balances = document.querySelector<HTMLElement>('.player-balances')!.getBoundingClientRect();
+      const navigator = document.querySelector<HTMLElement>('.board-navigator')!.getBoundingClientRect();
+      const ledger = document.querySelector<HTMLElement>('.table-ledger')!.getBoundingClientRect();
       return {
         boardLeftOfActions: board.right <= turnCard.left,
         boardFitsHeight: board.bottom <= innerHeight + 1,
@@ -100,7 +110,16 @@ test('two isolated phones create, join, start, and recover the same room', async
         }).map((label) => label.textContent),
         nearbyOverflow: [...document.querySelectorAll<HTMLElement>('.nearby-spaces strong')]
           .filter((label) => label.scrollWidth > label.clientWidth + 1)
-          .map((label) => label.textContent)
+          .map((label) => label.textContent),
+        geometry: {
+          board: [board.left / innerWidth, board.top / innerHeight, board.width / innerWidth, board.height / innerHeight],
+          actions: [turnCard.left / innerWidth, turnCard.top / innerHeight, turnCard.width / innerWidth, turnCard.height / innerHeight],
+          status: [status.left, status.right, status.height / innerHeight],
+          balances: [balances.left / innerWidth, balances.top / innerHeight, balances.height / innerHeight],
+          navigator: [navigator.left / innerWidth, navigator.top / innerHeight, navigator.height / innerHeight],
+          ledger: [ledger.left / innerWidth, ledger.top / innerHeight, ledger.height / innerHeight],
+          nav: [nav.right / innerWidth, nav.top / innerHeight, nav.height / innerHeight]
+        }
       };
     });
     expect(landscape.boardLeftOfActions).toBe(true);
@@ -111,6 +130,22 @@ test('two isolated phones create, join, start, and recover the same room', async
     expect(landscape.labelOverflow).toEqual([]);
     expect(landscape.awkwardWraps).toEqual([]);
     expect(landscape.nearbyOverflow).toEqual([]);
+    expect(landscape.geometry.board[0]).toBeCloseTo(0.034, 2);
+    expect(landscape.geometry.board[1]).toBeCloseTo(0.108, 2);
+    expect(landscape.geometry.board[2]).toBeCloseTo(0.447, 2);
+    expect(landscape.geometry.board[3]).toBeCloseTo(0.835, 2);
+    expect(landscape.geometry.actions[0]).toBeCloseTo(0.497, 2);
+    expect(landscape.geometry.actions[1]).toBeCloseTo(0.468, 2);
+    expect(landscape.geometry.actions[2]).toBeCloseTo(0.379, 2);
+    expect(landscape.geometry.actions[3]).toBeCloseTo(0.372, 2);
+    expect(landscape.geometry.status[0]).toBe(0);
+    expect(landscape.geometry.status[1]).toBe(viewport!.width);
+    expect(landscape.geometry.status[2]).toBeCloseTo(0.087, 2);
+    expect(landscape.geometry.balances[0]).toBeCloseTo(0.497, 2);
+    expect(landscape.geometry.navigator[0]).toBeCloseTo(0.497, 2);
+    expect(landscape.geometry.ledger[0]).toBeCloseTo(0.497, 2);
+    expect(landscape.geometry.nav[0]).toBeCloseTo(0.981, 2);
+    expect(landscape.geometry.nav[2]).toBeGreaterThan(0.78);
     await expect(host.locator('.table-ledger')).toHaveClass(/is-strip/u);
     await expect(host.locator('.bottom-nav button svg')).toHaveCount(4);
     await expect(host.getByRole('button', { name: 'ROLL ◆ ◆' })).toBeInViewport();

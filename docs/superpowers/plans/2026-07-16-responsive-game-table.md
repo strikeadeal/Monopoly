@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Do not change the game reducer, command protocol, room persistence, or WebSocket behavior.
-- Keep the existing board square and preserve all ownership, building, mortgage, and token signals.
+- Keep the board square outside phone landscape; use the accepted 1.17:1 landscape concept ratio while preserving all ownership, building, mortgage, and token signals.
 - Phone primary controls must be at least 44×44 px.
 - Compact-board cells must not be pointer or keyboard targets.
 - Preserve reduced-motion, focus-visible, safe-area, and standalone PWA behavior.
@@ -214,4 +214,3 @@ Confirm `GET /api/health` returns 200, WebSockets upgrade successfully, reload t
 Run: `git diff --check && git status --short`
 
 Expected: no whitespace errors and only intended design, component, style, test, spec, and plan files changed.
-
