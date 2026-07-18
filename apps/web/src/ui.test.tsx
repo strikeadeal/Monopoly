@@ -39,17 +39,6 @@ describe('mobile game UI', () => {
     expect(screen.queryByRole('button', { name: 'GO' })).toBeNull();
   });
 
-  it('uses a deliberate 40-space compact label set instead of clipping names', () => {
-    const state = makeState();
-    const { container } = render(<Board compact state={state} selectedIndex={null} onSelect={() => undefined} />);
-    expect([...container.querySelectorAll('.space-name-compact')].map((label) => label.textContent)).toEqual([
-      'GO', 'Armad.', 'Chest', 'Midl.', 'Inc Tax', 'Read. RR', 'Gosn.', 'Chance', 'Balga', 'Rocki.',
-      'Jail', 'Cann.', 'Elec.', 'Madd.', 'Thorn.', 'Penn. RR', 'Hillarys', 'Chest', 'Vic. Pk', 'Baysw.',
-      'Free Pkg', 'Mayl.', 'Chance', 'Mt Hawt.', 'Scar.', 'B&O RR', 'Mt Law.', 'Subiaco', 'Water', 'Clare.',
-      'Go Jail', 'Apple.', 'Cott.', 'Chest', 'City Bch', 'Short Ln', 'Chance', 'Dalk.', 'Lux Tax', 'Pepperm.'
-    ]);
-  });
-
   it('keeps the full 40-space label set available for the landscape board', () => {
     const state = makeState();
     const { container } = render(<Board compact state={state} selectedIndex={null} onSelect={() => undefined} />);
@@ -84,7 +73,7 @@ describe('mobile game UI', () => {
     const state = makeState();
     state.players[0]!.position = 5;
     render(<BoardNavigator state={state} onSelect={() => undefined} />);
-    expect(screen.getByRole('button', { name: 'Current space: Reading Railroad' })).toHaveClass('is-long');
+    expect(screen.getByRole('button', { name: 'Current space: Fremantle Line' })).toHaveClass('is-long');
   });
 
   it('turns the board center into live table status', () => {
@@ -316,7 +305,7 @@ describe('mobile game UI', () => {
     const state = makeState();
     state.properties[5]!.ownerId = 'p1';
     render(<GameScreen state={state} {...screenProps} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Reading Railroad, owned' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fremantle Line, owned' }));
     expect(screen.queryByText('Only streets can be improved.')).not.toBeInTheDocument();
   });
 

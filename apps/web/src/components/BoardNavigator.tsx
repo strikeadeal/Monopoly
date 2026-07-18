@@ -26,7 +26,7 @@ export function BoardNavigator({ state, onSelect }: { state: GameState; onSelect
         const color = space.type === 'street' ? colors[(space as StreetSpace).color] : '#b08a45';
         return <button
           type="button"
-          className={`${label === 'Current' ? 'is-current' : ''}${label === 'Current' && space.name.length > 10 ? ' is-long' : ''}`}
+          className={`${label === 'Current' ? 'is-current' : ''}${label === 'Current' && space.name.length > 8 ? ' is-long' : ''}`}
           key={label}
           onClick={() => onSelect(index)}
           aria-label={`${label} space: ${space.name}`}
