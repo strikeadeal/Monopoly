@@ -375,6 +375,63 @@ describe('mobile game UI', () => {
     expect(screen.queryByRole('dialog', { name: 'Dividend card' })).toBeNull();
   });
 
+  it('disables buying a property the player cannot afford and says why', () => {
+    const state = makeState();
+    state.players[0]!.cash = 40;
+    state.phase = { type: 'purchase', spaceIndex: 39, playerId: 'p1' };
+    render(<GameScreen state={state} {...screenProps} />);
+    expect(screen.getByRole('button', { name: 'Buy' })).toBeDisabled();
+    expect(screen.getByText('It costs $400 and you have $40 — send it to auction.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Auction' })).toBeEnabled();
+  });
+
+  it('requires an explicit confirmation before declaring bankruptcy', () => {
+    const state = makeState();
+    state.players[0]!.cash = 40;
+    state.phase = { type: 'debt', playerId: 'p1', creditorId: 'p2', amount: 600, reason: 'rent' };
+    const send = vi.fn();
+    render(<GameScreen state={state} {...screenProps} send={send} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Declare bankruptcy' }));
+    expect(send).not.toHaveBeenCalled();
+    expect(screen.getByText('Hand over everything?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Go back' }));
+    expect(screen.getByText('Raise $600')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Declare bankruptcy' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Declare bankruptcy' }).at(-1)!);
+    expect(send).toHaveBeenCalledWith({ type: 'DECLARE_BANKRUPTCY' });
+  });
+
+  it('routes an indebted player to their assets when they cannot pay outright', () => {
+    const state = makeState();
+    state.players[0]!.cash = 40;
+    state.phase = { type: 'debt', playerId: 'p1', creditorId: 'p2', amount: 600, reason: 'rent' };
+    render(<GameScreen state={state} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open assets' }));
+    expect(screen.getByRole('heading', { name: 'Your deeds' })).toBeInTheDocument();
+  });
+
+  it('gives the finished table a clear exit and a game-over status', () => {
+    const state = makeState();
+    state.phase = { type: 'finished', winnerIds: ['p1'], reason: 'bankruptcy' };
+    const onLeave = vi.fn();
+    render(<GameScreen state={state} {...screenProps} onLeave={onLeave} />);
+    expect(screen.getByText('Game over')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Leave the table' }));
+    expect(onLeave).toHaveBeenCalledOnce();
+  });
+
+  it('describes an incoming trade offer from the receiver point of view', () => {
+    const state = makeState();
+    state.properties[5]!.ownerId = 'p2';
+    state.pendingTrade = { id: 't1', fromPlayerId: 'p2', toPlayerId: 'p1', offeredCash: 0, requestedCash: 1075, offeredProperties: [5], requestedProperties: [], offeredJailCards: [], requestedJailCards: [] };
+    render(<GameScreen state={state} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Trade' }));
+    expect(screen.getByText('You receive')).toBeInTheDocument();
+    expect(screen.getByText('$0 · Fremantle Line')).toBeInTheDocument();
+    expect(screen.getByText('You give')).toBeInTheDocument();
+    expect(screen.getByText('$1,075')).toBeInTheDocument();
+  });
+
   it('offers create and join as the only primary landing actions', () => {
     render(<Landing onCreate={() => undefined} onJoin={() => undefined} busy={false} error={null} />);
     expect(screen.getByRole('button', { name: 'Create game' })).toBeInTheDocument();

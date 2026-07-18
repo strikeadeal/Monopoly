@@ -15,6 +15,7 @@ interface Env {
   GAME_ROOMS: DurableObjectNamespace<GameRoom>;
   ALLOWED_ORIGIN: string;
   DEPLOY_VERSION: string;
+  ALLOW_TEST_DICE?: string;
 }
 interface AuthRecord { tokenHash: string; joinedAt: number; disconnectedAt?: number }
 interface StoredRoom { state: GameState; auth: Record<string, AuthRecord>; results: [string, CommandResult][]; lastActivity: number; joinAttempts?: number[] }
@@ -254,9 +255,10 @@ export class GameRoom extends DurableObject<Env> {
     const parsed = commandSchema.safeParse(value);
     if (!parsed.success) { socket.send(JSON.stringify({ type: 'commandRejected', commandId: 'invalid', code: 'INVALID_COMMAND', message: 'Command format rejected.' } satisfies ServerMessage)); return; }
     const envelope = parsed.data as unknown as CommandEnvelope;
-    const validPayload = validateClientPayload(envelope.type, envelope.payload);
+    const allowTestDice = this.env.ALLOW_TEST_DICE === '1';
+    const validPayload = validateClientPayload(envelope.type, envelope.payload, allowTestDice);
     if (!validPayload) { socket.send(JSON.stringify({ type: 'commandRejected', commandId: envelope.commandId, code: 'INVALID_COMMAND', message: 'Command payload rejected.' } satisfies ServerMessage)); return; }
-    envelope.payload = authoritativePayload(envelope.type, validPayload, attachment.playerId);
+    envelope.payload = authoritativePayload(envelope.type, validPayload, attachment.playerId, Date.now(), allowTestDice);
     const session = new RoomSession(room.state, room.results);
     const result = session.execute(envelope);
     if (result.ok) {
