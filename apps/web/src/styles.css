@@ -109,7 +109,8 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .roll-button i { color: #dfc274; font-style: normal; letter-spacing: .4em; }
 .action-row, .bid-controls, .deed-actions { display: flex; gap: 8px; }
 .action-row > *, .bid-controls button { flex: 1; }
-.bid-value { margin: 0; color: var(--ink)!important; font-family: 'DM Serif Display', serif; font-size: 2rem!important; }
+.bid-value { margin: 0; color: var(--ink)!important; font-family: 'DM Serif Display', serif; font-size: 2rem!important; font-weight: 400; line-height: 1; }
+.bid-line { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; color: #596961; }
 .bid-controls input { max-width: 100px; }
 .danger-button { border-color: #9a302b; color: #9a302b; }
 .bottom-nav { position: fixed; z-index: 10; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, 1fr); max-width: 540px; margin: auto; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: rgba(248,241,223,.96); backdrop-filter: blur(14px); }
@@ -352,7 +353,7 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
   .board.is-compact .board-space { padding:1px; line-height:1; }
   .board.is-compact .space-name { display:block; overflow:hidden; font-size:.31rem; letter-spacing:-.02em; overflow-wrap:normal; text-transform:uppercase; word-break:normal; }
   .board.is-compact .space-icon svg { width:9px; }
-  .board.is-compact .space-icon + .space-name { font-size:.29rem; white-space:nowrap; }
+  .board.is-compact .space-icon + .space-name { font-size:.29rem; }
   .board.is-compact .board-center::before { display:none; }
   .board.is-compact .board-center small { padding-bottom:4px; border-bottom:1px solid rgba(23,37,31,.34); font-size:.52rem; }
   .board.is-compact .board-center span { margin-top:6px; font-size:1.55rem; }
@@ -507,7 +508,6 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
     font-size:.21rem;
     line-height:1.04;
   }
-  .board.is-compact .space-name-compact { display:none; }
   .board.is-compact .space-name-full {
     display:-webkit-box;
     overflow:hidden;
@@ -523,7 +523,6 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
   .board.is-compact .space-icon { margin:0 0 1px; color:#31473d; }
   .board.is-compact .space-icon svg { width:11px; height:11px; }
   .board.is-compact .space-icon + .space-name { font-size:.2rem; white-space:normal; }
-  .board.is-compact .space-icon + .space-name + .space-name-full { font-size:.2rem; white-space:normal; }
   .board.is-compact .edge-left .property-band,.board.is-compact .edge-right .property-band {
     inset:0 auto 0 0;
     width:14%;
@@ -606,16 +605,30 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 
   .game-shell:has(.board) .turn-card { grid-column:2; grid-row:5; }
   .turn-card {
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
     height:100%;
-    padding:15px;
+    padding:12px 15px;
     border-color:rgba(77,74,65,.32);
     border-radius:8px;
     background:#f4efe5;
     box-shadow:0 4px 0 rgba(58,80,68,.13);
   }
-  .turn-card .eyeline { margin-bottom:7px; font-size:.48rem; letter-spacing:.16em; }
-  .turn-card h2 { margin-bottom:7px; font-size:3vw; line-height:1; }
-  .turn-card p { margin-bottom:8px; font-size:.72rem; }
+  .turn-card .eyeline { margin-bottom:6px; font-size:.48rem; letter-spacing:.16em; }
+  .turn-card h2 { margin-bottom:6px; font-size:clamp(1.1rem,2.8vw,1.45rem); line-height:1; }
+  .turn-card p { margin-bottom:6px; font-size:.72rem; }
+  /* Text keeps its full line boxes; the card scrolls if a state ever outgrows it. */
+  .turn-card > * { flex-shrink:0; }
+  .turn-card .action-row, .turn-card .bid-controls, .turn-card > .roll-button, .turn-card > .primary-button, .turn-card > .danger-button { margin-top:auto; }
+  .turn-card .bid-value { font-size:1.35rem!important; }
+  .turn-card .bid-line { margin-bottom:6px; }
+  .auction-card .eyeline { margin-bottom:3px; }
+  .auction-card h2 { margin-bottom:4px; font-size:1.05rem; }
+  .bid-controls input { min-width:0; max-width:84px; }
+  .bid-controls button { white-space:nowrap; }
+  /* The board centre already shows the roll; reclaim the row for the offer. */
+  .purchase-card .dice-line { display:none; }
   .roll-button { min-height:52px; padding:0 16px; border-radius:7px; font-size:.86rem; }
   .roll-button i { font-size:.8rem; }
   .action-row button { min-height:44px; }

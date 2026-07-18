@@ -17,13 +17,7 @@ function edge(index: number) {
   if (index <= 30) return 'top';
   return 'right';
 }
-const shortName = (name: string) => name.replace(' Avenue', '').replace(' Railroad', ' RR').replace('Community Chest', 'Chest').replace('Free Parking', 'Free').replace('Just Visiting', 'Visit');
-const COMPACT_SPACE_NAMES = [
-  'GO', 'Armad.', 'Chest', 'Midl.', 'Inc Tax', 'Read. RR', 'Gosn.', 'Chance', 'Balga', 'Rocki.',
-  'Jail', 'Cann.', 'Elec.', 'Madd.', 'Thorn.', 'Penn. RR', 'Hillarys', 'Chest', 'Vic. Pk', 'Baysw.',
-  'Free Pkg', 'Mayl.', 'Chance', 'Mt Hawt.', 'Scar.', 'B&O RR', 'Mt Law.', 'Subiaco', 'Water', 'Clare.',
-  'Go Jail', 'Apple.', 'Cott.', 'Chest', 'City Bch', 'Short Ln', 'Chance', 'Dalk.', 'Lux Tax', 'Pepperm.'
-] as const;
+const shortName = (name: string) => name.replace('Community Chest', 'Chest').replace('Free Parking', 'Free').replace('Just Visiting', 'Visit');
 
 export function Board({ state, selectedIndex, onSelect, displayPositions = {}, movingPlayerId = null, tokenMotion = null, compact = false }: { state: GameState; selectedIndex: number | null; onSelect: (index: number) => void; displayPositions?: Record<string, number>; movingPlayerId?: string | null; tokenMotion?: TokenMotion; compact?: boolean }) {
   const current = state.players.find((player) => player.id === state.currentPlayerId);
@@ -39,10 +33,7 @@ export function Board({ state, selectedIndex, onSelect, displayPositions = {}, m
       const content = <>
         {space.type === 'street' ? <span className="property-band" /> : null}
         {space.type !== 'street' ? <span className="space-icon"><SpaceIcon type={space.type} name={space.name} /></span> : null}
-        {compact ? <>
-          <span className="space-name space-name-compact" aria-hidden="true">{COMPACT_SPACE_NAMES[space.index]}</span>
-          <span className="space-name space-name-full" aria-hidden="true">{space.name}</span>
-        </> : <span className="space-name space-name-full" aria-hidden="true">{shortName(space.name)}</span>}
+        <span className="space-name space-name-full" aria-hidden="true">{compact ? space.name : shortName(space.name)}</span>
         {property?.buildings ? <span className="buildings">{property.buildings === 5 ? '◆' : '▪'.repeat(property.buildings)}</span> : null}
         <span className="space-tokens">{players.map((player) => <span key={player.id} className={`token token-${state.players.indexOf(player) + 1} ${player.id === movingPlayerId && tokenMotion ? `is-${tokenMotion}` : ''}`} aria-label={`${player.name} on ${space.name}`}><TokenIcon token={player.token} size={12} /></span>)}</span>
       </>;
