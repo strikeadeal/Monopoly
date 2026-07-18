@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import { BOARD, type GameState, type StreetSpace } from '@monopoly/game';
+import { GROUP_COLORS as colors, SPACE_FALLBACK_COLOR } from '../theme';
 
-const colors: Record<string, string> = { brown: '#8b5a3c', 'light-blue': '#63b8d5', pink: '#cf5b9d', orange: '#e98a32', red: '#c9423b', yellow: '#e0bd3d', green: '#438d64', 'dark-blue': '#315b92' };
 const typeLabel = (type: string) => type.replaceAll('-', ' ');
 
 function DirectoryIcon() {
@@ -23,10 +23,10 @@ export function BoardNavigator({ state, onSelect }: { state: GameState; onSelect
     <div className="nearby-spaces">
       {nearby.map(({ label, index }) => {
         const space = BOARD[index]!;
-        const color = space.type === 'street' ? colors[(space as StreetSpace).color] : '#b08a45';
+        const color = space.type === 'street' ? colors[(space as StreetSpace).color] : SPACE_FALLBACK_COLOR;
         return <button
           type="button"
-          className={`${label === 'Current' ? 'is-current' : ''}${label === 'Current' && space.name.length > 8 ? ' is-long' : ''}`}
+          className={`${label === 'Current' ? 'is-current' : ''}${label === 'Current' && space.name.length > 6 ? ' is-long' : ''}`}
           key={label}
           onClick={() => onSelect(index)}
           aria-label={`${label} space: ${space.name}`}
@@ -48,7 +48,7 @@ export function BoardNavigator({ state, onSelect }: { state: GameState; onSelect
             const property = state.properties[space.index];
             const owner = property?.ownerId ? state.players.find((player) => player.id === property.ownerId)?.name : null;
             const availability = owner ? `owned by ${owner}` : 'available';
-            const color = space.type === 'street' ? colors[(space as StreetSpace).color] : '#b08a45';
+            const color = space.type === 'street' ? colors[(space as StreetSpace).color] : SPACE_FALLBACK_COLOR;
             return <li key={space.index}>
               <button
                 type="button"

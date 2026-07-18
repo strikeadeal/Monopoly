@@ -1,5 +1,21 @@
 import { expect, test } from '@playwright/test';
 
+/* Expected landscape-phone geometry as viewport fractions.
+ * These literals mirror the dvh/vw values in apps/web/src/styles.css (the
+ * "Accepted landscape concept" block). If a landscape proportion changes there,
+ * recompute and update this block in the same commit — do not derive these from
+ * the CSS at runtime, or the test becomes tautological. */
+const LANDSCAPE_GEOMETRY = {
+  board: [0.034, 0.108, 0.447, 0.835],
+  actions: [0.497, 0.468, 0.379, 0.372],
+  statusHeight: 0.087,
+  balancesLeft: 0.497,
+  navigatorLeft: 0.497,
+  ledgerLeft: 0.497,
+  navRight: 0.981,
+  navMinHeight: 0.78
+} as const;
+
 test('two isolated phones create, join, start, and recover the same room', async ({ browser }) => {
   test.setTimeout(60_000);
   const hostContext = await browser.newContext();
@@ -130,22 +146,16 @@ test('two isolated phones create, join, start, and recover the same room', async
     expect(landscape.labelOverflow).toEqual([]);
     expect(landscape.awkwardWraps).toEqual([]);
     expect(landscape.nearbyOverflow).toEqual([]);
-    expect(landscape.geometry.board[0]).toBeCloseTo(0.034, 2);
-    expect(landscape.geometry.board[1]).toBeCloseTo(0.108, 2);
-    expect(landscape.geometry.board[2]).toBeCloseTo(0.447, 2);
-    expect(landscape.geometry.board[3]).toBeCloseTo(0.835, 2);
-    expect(landscape.geometry.actions[0]).toBeCloseTo(0.497, 2);
-    expect(landscape.geometry.actions[1]).toBeCloseTo(0.468, 2);
-    expect(landscape.geometry.actions[2]).toBeCloseTo(0.379, 2);
-    expect(landscape.geometry.actions[3]).toBeCloseTo(0.372, 2);
+    for (const [index, value] of LANDSCAPE_GEOMETRY.board.entries()) expect(landscape.geometry.board[index]).toBeCloseTo(value, 2);
+    for (const [index, value] of LANDSCAPE_GEOMETRY.actions.entries()) expect(landscape.geometry.actions[index]).toBeCloseTo(value, 2);
     expect(landscape.geometry.status[0]).toBe(0);
     expect(landscape.geometry.status[1]).toBe(viewport!.width);
-    expect(landscape.geometry.status[2]).toBeCloseTo(0.087, 2);
-    expect(landscape.geometry.balances[0]).toBeCloseTo(0.497, 2);
-    expect(landscape.geometry.navigator[0]).toBeCloseTo(0.497, 2);
-    expect(landscape.geometry.ledger[0]).toBeCloseTo(0.497, 2);
-    expect(landscape.geometry.nav[0]).toBeCloseTo(0.981, 2);
-    expect(landscape.geometry.nav[2]).toBeGreaterThan(0.78);
+    expect(landscape.geometry.status[2]).toBeCloseTo(LANDSCAPE_GEOMETRY.statusHeight, 2);
+    expect(landscape.geometry.balances[0]).toBeCloseTo(LANDSCAPE_GEOMETRY.balancesLeft, 2);
+    expect(landscape.geometry.navigator[0]).toBeCloseTo(LANDSCAPE_GEOMETRY.navigatorLeft, 2);
+    expect(landscape.geometry.ledger[0]).toBeCloseTo(LANDSCAPE_GEOMETRY.ledgerLeft, 2);
+    expect(landscape.geometry.nav[0]).toBeCloseTo(LANDSCAPE_GEOMETRY.navRight, 2);
+    expect(landscape.geometry.nav[2]).toBeGreaterThan(LANDSCAPE_GEOMETRY.navMinHeight);
     await expect(host.locator('.table-ledger')).toHaveClass(/is-strip/u);
     await expect(host.locator('.bottom-nav button svg')).toHaveCount(4);
     await expect(host.getByRole('button', { name: 'ROLL ◆ ◆' })).toBeInViewport();

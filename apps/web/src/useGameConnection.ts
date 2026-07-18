@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROTOCOL_VERSION, type GameCommand, type GameState, type ServerMessage } from '@monopoly/game';
 import { createTicket, socketUrl, type SessionIdentity } from './api';
+import { friendlyError } from './errorCopy';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'reconnecting' | 'offline';
 
@@ -79,7 +80,7 @@ export function useGameConnection(session: SessionIdentity | null) {
             window.clearTimeout(pongDeadline);
             pongDeadline = 0;
           } else if (message.type === 'commandRejected') {
-            setError(message.message);
+            setError(friendlyError(message.message));
             if (message.state) { stateRef.current = message.state; setState(message.state); }
           } else if (message.type === 'protocolMismatch') setError('The game was updated. Refresh this page to continue safely.');
         };
@@ -96,7 +97,7 @@ export function useGameConnection(session: SessionIdentity | null) {
       } catch (cause) {
         connecting = false;
         if (stopped) return;
-        setError(cause instanceof Error ? cause.message : 'Connection failed.'); setStatus('reconnecting'); retries.current += 1;
+        setError(friendlyError(cause instanceof Error ? cause.message : 'Connection failed.')); setStatus('reconnecting'); retries.current += 1;
         scheduleReconnect();
       }
     };
@@ -140,6 +141,13 @@ export function useGameConnection(session: SessionIdentity | null) {
     const { type, ...payload } = command;
     socket.send(JSON.stringify({ protocolVersion: PROTOCOL_VERSION, commandId: crypto.randomUUID(), expectedRevision: stateRef.current.revision, type, payload }));
   }, [session]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const debugWindow = window as typeof window & { __monopolyDebug?: unknown };
+    debugWindow.__monopolyDebug = { send, getState: () => stateRef.current };
+    return () => { delete debugWindow.__monopolyDebug; };
+  }, [send]);
 
   return { state, status, error, clearError: () => setError(null), send };
 }

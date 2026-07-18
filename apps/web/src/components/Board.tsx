@@ -3,8 +3,7 @@ import type { CSSProperties } from 'react';
 import { SpaceIcon } from './SpaceIcon';
 import { TokenIcon } from './TokenIcon';
 import type { TokenMotion } from '../useMovementAnimation';
-
-const colors: Record<string, string> = { brown: '#8b5a3c', 'light-blue': '#63b8d5', pink: '#cf5b9d', orange: '#e98a32', red: '#c9423b', yellow: '#e0bd3d', green: '#438d64', 'dark-blue': '#315b92' };
+import { GROUP_COLORS as colors } from '../theme';
 function coordinates(index: number) {
   if (index <= 10) return { row: 11, col: 11 - index };
   if (index <= 20) return { row: 21 - index, col: 1 };

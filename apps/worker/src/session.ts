@@ -15,6 +15,8 @@ export function firstAvailableToken(state: GameState): TokenId {
 }
 const empty = z.object({});
 const space = z.object({ spaceIndex: z.number().int().min(0).max(39) });
+const die = z.number().int().min(1).max(6);
+const rollWithTestDice = z.object({ dice: z.tuple([die, die]).optional() });
 const tradeOffer = z.object({
   id: z.string().min(1).max(100), fromPlayerId: z.string().min(1).max(100), toPlayerId: z.string().min(1).max(100),
   offeredCash: z.number().int().nonnegative(), requestedCash: z.number().int().nonnegative(),
@@ -28,15 +30,15 @@ const payloadSchemas: Record<string, z.ZodType<Record<string, unknown>>> = {
   SETTLE_DEBT: empty, PROPOSE_TRADE: z.object({ offer: tradeOffer }), RESPOND_TRADE: z.object({ accept: z.boolean() }),
   DECLARE_BANKRUPTCY: empty, PAUSE: empty, RESUME: empty
 };
-export function validateClientPayload(type: string, payload: unknown) {
-  const schema = payloadSchemas[type];
+export function validateClientPayload(type: string, payload: unknown, allowTestDice = false) {
+  const schema = allowTestDice && type === 'ROLL' ? rollWithTestDice : payloadSchemas[type];
   if (!schema) return null;
   const result = schema.safeParse(payload);
   return result.success ? result.data : null;
 }
-export function authoritativePayload(type: CommandEnvelope['type'], payload: Record<string, unknown>, playerId: string, at = Date.now()) {
+export function authoritativePayload(type: CommandEnvelope['type'], payload: Record<string, unknown>, playerId: string, at = Date.now(), allowTestDice = false) {
   const result: Record<string, unknown> = { ...payload, playerId };
-  delete result.dice;
+  if (!(allowTestDice && type === 'ROLL')) delete result.dice;
   delete result.now;
   if (timedCommandTypes.has(type)) result.now = at;
   return result;

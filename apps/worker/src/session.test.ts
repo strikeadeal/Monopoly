@@ -74,6 +74,14 @@ describe('client command authority', () => {
     expect(authoritativePayload('PLACE_BID', { amount: 20, now: 1 }, 'p1', 5_000)).toEqual({ amount: 20, playerId: 'p1', now: 5_000 });
   });
 
+  it('passes valid test dice through only when explicitly allowed', () => {
+    expect(authoritativePayload('ROLL', { dice: [6, 6], now: 1 }, 'p1', 5_000, true)).toEqual({ dice: [6, 6], playerId: 'p1' });
+    expect(authoritativePayload('PLACE_BID', { dice: [6, 6], amount: 20 }, 'p1', 5_000, true)).toEqual({ amount: 20, playerId: 'p1', now: 5_000 });
+    expect(validateClientPayload('ROLL', { dice: [6, 6] }, true)).toEqual({ dice: [6, 6] });
+    expect(validateClientPayload('ROLL', {}, true)).toEqual({});
+    expect(validateClientPayload('ROLL', { dice: [0, 7] }, true)).toBeNull();
+  });
+
   it('rejects malformed payload fields before the reducer', () => {
     expect(validateClientPayload('SET_READY', { ready: 'yes' })).toBeNull();
     expect(validateClientPayload('BUILD', { spaceIndex: 41 })).toBeNull();
