@@ -15,3 +15,5 @@ export const GROUP_COLORS: Record<string, string> = {
 
 /* Accent used for non-street spaces in board browsers/navigators. */
 export const SPACE_FALLBACK_COLOR = '#b08a45';
+
+export const PLAYER_COLORS = ['#447760', '#b64c45', '#406a98', '#b38643', '#785782', '#39433e'] as const;
