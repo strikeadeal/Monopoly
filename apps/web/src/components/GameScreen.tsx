@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { BOARD, PROPERTY_SPACES, getPropertyActionAvailability, netWorth, type GameState, type StreetSpace, type TradeOffer } from '@monopoly/game';
+import { BOARD, PROPERTY_SPACES, RAILROAD_RENTS, UTILITY_RENT_MULTIPLIERS, getPropertyActionAvailability, netWorth, type GameState, type StreetSpace, type TradeOffer } from '@monopoly/game';
 import { Board } from './Board';
 import { ActivityTimeline } from './ActivityTimeline';
 import { BoardNavigator } from './BoardNavigator';
@@ -10,7 +10,7 @@ import { PlayerBalances } from './PlayerBalances';
 import { TableLedger } from './TableLedger';
 import { useCompactLayout, useLandscapePhone } from '../useCompactLayout';
 import { useMovementAnimation } from '../useMovementAnimation';
-import { GROUP_COLORS as groupColors } from '../theme';
+import { GROUP_COLORS as groupColors, PLAYER_COLORS } from '../theme';
 
 type Sender = (command: Record<string, unknown> & { type: string }) => void;
 type GameSection = 'game' | 'assets' | 'trade' | 'activity';
@@ -33,12 +33,38 @@ function SectionIcon({ section }: { section: GameSection }) {
 
 function PropertySheet({ state, index, playerId, send, onClose }: { state: GameState; index: number; playerId: string; send: Sender; onClose: () => void }) {
   const space = BOARD[index]!; const property = state.properties[index]; const mine = property?.ownerId === playerId;
+  const owner = property?.ownerId ? state.players.find((player) => player.id === property.ownerId) : undefined;
+  const ownerColor = owner ? PLAYER_COLORS[state.turnOrder.indexOf(owner.id)] : undefined;
   const actions = property && mine ? getPropertyActionAvailability(state, playerId, index) : null;
   const propertyAction = actions ? (property?.mortgaged ? actions.unmortgage : actions.mortgage) : null;
   const firstReason = actions
     ? (space.type === 'street' && !actions.build.allowed ? actions.build.reason : !propertyAction?.allowed ? propertyAction?.reason : null)
     : null;
-  return <div className="drawer-backdrop" onClick={onClose}><section className="deed-sheet" onClick={(event) => event.stopPropagation()}><button className="close-button" onClick={onClose} aria-label="Close property details">×</button><div className={`deed-band color-${space.type === 'street' ? (space as StreetSpace).color : 'utility'}`} /><span className="eyeline">{space.type === 'railroad' ? 'train line' : space.type.replace('-', ' ')}</span><h2>{space.name}</h2>{'price' in space ? <p className="deed-price">Purchase {money.format(space.price)} · Mortgage {money.format(space.mortgage)}</p> : null}{space.type === 'street' ? <div className="rent-table">{space.rents.map((rent, count) => <div key={count}><span>{count === 0 ? 'Base rent' : count === 5 ? 'Hotel' : `${count} house${count > 1 ? 's' : ''}`}</span><strong>{money.format(rent)}</strong></div>)}</div> : null}{property ? <p className="owner-line">{property.ownerId ? `Owned by ${state.players.find((player) => player.id === property.ownerId)?.name}` : 'Available from the Bank'}{property.mortgaged ? ' · Mortgaged' : ''}</p> : null}{actions ? <><div className="deed-actions">{space.type === 'street' ? <><button disabled={!actions.build.allowed} onClick={() => send({ type: 'BUILD', spaceIndex: index })}>Build</button><button disabled={!actions.sellBuilding.allowed} onClick={() => send({ type: 'SELL_BUILDING', spaceIndex: index })}>Sell building</button></> : null}<button disabled={property?.mortgaged ? !actions.unmortgage.allowed : !actions.mortgage.allowed} onClick={() => send({ type: property?.mortgaged ? 'UNMORTGAGE' : 'MORTGAGE', spaceIndex: index })}>{property?.mortgaged ? 'Unmortgage' : 'Mortgage'}</button></div>{firstReason ? <p className="deed-hint">{firstReason}</p> : null}</> : null}</section></div>;
+  const rentRows = space.type === 'street'
+    ? space.rents.map((rent, count) => ({ label: count === 0 ? 'Base rent' : count === 5 ? 'Hotel' : `${count} house${count > 1 ? 's' : ''}`, value: money.format(rent) }))
+    : space.type === 'railroad'
+      ? RAILROAD_RENTS.map((rent, count) => ({ label: `${count + 1} train line${count ? 's' : ''}`, value: money.format(rent) }))
+      : space.type === 'utility'
+        ? UTILITY_RENT_MULTIPLIERS.map((multiplier, count) => ({ label: `${count + 1} utilit${count ? 'ies' : 'y'}`, value: `${multiplier}× dice total` }))
+        : [];
+  const headingId = `deed-heading-${index}`;
+  const deedColor = space.type === 'street' ? (space as StreetSpace).color : space.type;
+  return <div className="drawer-backdrop" onClick={onClose}>
+    <section className="deed-sheet" role="dialog" aria-labelledby={headingId} onClick={(event) => event.stopPropagation()}>
+      <button className="close-button" onClick={onClose} aria-label="Close property details">×</button>
+      <div className={`deed-band color-${deedColor}`} />
+      <span className="eyeline">{space.type === 'railroad' ? 'train line' : space.type.replace('-', ' ')}</span>
+      <h2 id={headingId}>{space.name}</h2>
+      {'price' in space ? <p className="deed-price">Purchase {money.format(space.price)} · Mortgage {money.format(space.mortgage)}</p> : null}
+      {space.type === 'street' ? <p className="build-cost">Build houses or hotel: {money.format(space.buildCost)} each</p> : null}
+      {rentRows.length ? <div className="rent-table">{rentRows.map((row) => <div key={row.label}><span>{row.label}</span><strong>{row.value}</strong></div>)}</div> : null}
+      {property ? <p className="owner-line">
+        {owner ? <span className="owner-swatch" aria-hidden="true" style={{ '--owner-color': ownerColor } as CSSProperties} /> : null}
+        <span>{owner ? `Owned by ${owner.name}` : 'Available from the Bank'}{property.mortgaged ? ' · Mortgaged' : ''}</span>
+      </p> : null}
+      {actions ? <><div className="deed-actions">{space.type === 'street' ? <><button disabled={!actions.build.allowed} onClick={() => send({ type: 'BUILD', spaceIndex: index })}>Build</button><button disabled={!actions.sellBuilding.allowed} onClick={() => send({ type: 'SELL_BUILDING', spaceIndex: index })}>Sell building</button></> : null}<button disabled={property?.mortgaged ? !actions.unmortgage.allowed : !actions.mortgage.allowed} onClick={() => send({ type: property?.mortgaged ? 'UNMORTGAGE' : 'MORTGAGE', spaceIndex: index })}>{property?.mortgaged ? 'Unmortgage' : 'Mortgage'}</button></div>{firstReason ? <p className="deed-hint">{firstReason}</p> : null}</> : null}
+    </section>
+  </div>;
 }
 
 function useDiceAnimation(lastRoll: GameState['lastRoll']) {

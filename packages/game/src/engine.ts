@@ -1,4 +1,4 @@
-import { BOARD, CARD_BY_ID, CHANCE_CARDS, COMMUNITY_CHEST_CARDS, PROPERTY_SPACES } from './data';
+import { BOARD, CARD_BY_ID, CHANCE_CARDS, COMMUNITY_CHEST_CARDS, PROPERTY_SPACES, RAILROAD_RENTS, UTILITY_RENT_MULTIPLIERS } from './data';
 import type { ActionAvailability, BoardSpace, GameCard, GameCommand, GamePhase, GameSettings, GameState, PlayerSeed, PlayerState, PropertyActionAvailability, PropertyState, StreetSpace, TradeOffer } from './types';
 
 export type RandomSource = () => number;
@@ -118,10 +118,10 @@ function rentFor(game: GameState, space: Extract<BoardSpace, { type: 'street' | 
   }
   if (space.type === 'railroad') {
     const count = BOARD.filter((item) => item.type === 'railroad' && game.properties[item.index]?.ownerId === ownerId && !game.properties[item.index]?.mortgaged).length;
-    return 25 * 2 ** Math.max(0, count - 1) * multiplier;
+    return RAILROAD_RENTS[count - 1]! * multiplier;
   }
   const count = BOARD.filter((item) => item.type === 'utility' && game.properties[item.index]?.ownerId === ownerId && !game.properties[item.index]?.mortgaged).length;
-  return (game.lastRoll?.reduce((sum, die) => sum + die, 0) ?? 7) * (multiplier !== 1 ? multiplier : count === 2 ? 10 : 4);
+  return (game.lastRoll?.reduce((sum, die) => sum + die, 0) ?? 7) * (multiplier !== 1 ? multiplier : UTILITY_RENT_MULTIPLIERS[count === 2 ? 1 : 0]);
 }
 
 function drawCard(game: GameState, player: PlayerState, deckName: 'chance' | 'community-chest', random: RandomSource) {

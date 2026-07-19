@@ -4,6 +4,8 @@ import {
   CHANCE_CARDS,
   COMMUNITY_CHEST_CARDS,
   PROPERTY_SPACES,
+  RAILROAD_RENTS,
+  UTILITY_RENT_MULTIPLIERS,
   createGame,
   getPropertyActionAvailability,
   createLobby,
@@ -50,6 +52,11 @@ describe('canonical game data', () => {
   it('preserves the endpoint deed values', () => {
     expect(BOARD[1]).toMatchObject({ price: 60, mortgage: 30, rents: [2, 10, 30, 90, 160, 250] });
     expect(BOARD[39]).toMatchObject({ price: 400, mortgage: 200, rents: [50, 200, 600, 1400, 1700, 2000] });
+  });
+
+  it('exports the canonical non-street deed economics', () => {
+    expect(RAILROAD_RENTS).toEqual([25, 50, 100, 200]);
+    expect(UTILITY_RENT_MULTIPLIERS).toEqual([4, 10]);
   });
 
   it('preserves every street purchase, mortgage, building, and rent value', () => {
@@ -276,6 +283,52 @@ describe('authoritative game reducer', () => {
     game = reduceGame(game, { type: 'ROLL', playerId: 'p2', dice: [1, 2] }, () => 0);
     expect(game.players.find((player) => player.id === 'p1')?.cash).toBe(1444);
     expect(game.players.find((player) => player.id === 'p2')?.cash).toBe(1496);
+  });
+
+  it('charges the one-line railroad rent', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.properties[5]!.ownerId = 'p2';
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [2, 3] }, () => 0);
+    expect(next.players[0]!.cash).toBe(1475);
+  });
+
+  it('charges the multi-line railroad rent', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    for (const spaceIndex of [5, 15, 25]) game.properties[spaceIndex]!.ownerId = 'p2';
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [2, 3] }, () => 0);
+    expect(next.players[0]!.cash).toBe(1400);
+  });
+
+  it('charges four times a roll for one utility', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.players[0]!.position = 10;
+    game.properties[12]!.ownerId = 'p2';
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [1, 1] }, () => 0);
+    expect(next.players[0]!.cash).toBe(1492);
+  });
+
+  it('charges ten times a roll for two utilities', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.players[0]!.position = 10;
+    for (const spaceIndex of [12, 28]) game.properties[spaceIndex]!.ownerId = 'p2';
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [1, 1] }, () => 0);
+    expect(next.players[0]!.cash).toBe(1480);
+  });
+
+  it('applies the Chance railroad multiplier to the scheduled rent', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.chanceDeck = ['ch-rail-1', ...game.chanceDeck.filter((id) => id !== 'ch-rail-1')];
+    for (const spaceIndex of [5, 15]) game.properties[spaceIndex]!.ownerId = 'p2';
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [3, 4] }, () => 0);
+    expect(next.players[0]!.cash).toBe(1400);
+  });
+
+  it('uses the Chance utility multiplier instead of the normal schedule', () => {
+    const game = createGame(players, { mode: 'official' }, () => 0);
+    game.chanceDeck = ['ch-utility', ...game.chanceDeck.filter((id) => id !== 'ch-utility')];
+    game.properties[12]!.ownerId = 'p2';
+    const next = reduceGame(game, { type: 'ROLL', playerId: 'p1', dice: [3, 4] }, () => 0);
+    expect(next.players[0]!.cash).toBe(1430);
   });
 
   it('rejects commands from a player who does not own the turn', () => {

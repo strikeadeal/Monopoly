@@ -89,12 +89,13 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .player-balances::-webkit-scrollbar { display:none; }
 .balance-chip { display:grid; grid-template-columns:24px minmax(52px,1fr); grid-template-rows:auto auto; flex:0 0 112px; align-items:center; column-gap:7px; padding:7px 9px; border:1px solid var(--line); border-radius:12px; background:rgba(248,241,223,.72); }
 .balance-chip svg { grid-row:1/3; width:22px; height:22px; }
+.balance-token { background:var(--player-color); color:white; }
 .balance-chip span { overflow:hidden; color:#5b6a63; font-size:.65rem; text-overflow:ellipsis; white-space:nowrap; }
 .balance-chip strong { font-family:'DM Serif Display',serif; font-size:1rem; line-height:1; }
 .balance-chip.is-current { border-color:#2f6f59; box-shadow:inset 0 0 0 1px #2f6f59; }
 .balance-chip.is-me { background:#f8f1df; }
 .balance-chip.is-bankrupt { filter:grayscale(1); opacity:.58; text-decoration:line-through; }
-.board { position: relative; display: grid; grid-template: repeat(11, minmax(0,1fr)) / repeat(11, minmax(0,1fr)); width: 100%; max-width:100%; aspect-ratio: 1; overflow: hidden; border: 2px solid #1d3128; background: #a9cfba; box-shadow: 4px 5px 0 #718c7c; }
+.board { position: relative; display: grid; grid-template: repeat(11, minmax(0,1fr)) / repeat(11, minmax(0,1fr)); width: 100%; max-width:100%; aspect-ratio: 1; overflow: visible; border: 2px solid #1d3128; background: #a9cfba; box-shadow: 4px 5px 0 #718c7c; }
 .board-center { grid-area: 2 / 2 / 11 / 11; display: grid; place-content: center; transform: rotate(-35deg); text-align: center; }
 .board-center span { padding: 2px 10px; border: 3px solid #b8433c; font-family: 'DM Serif Display', serif; font-size: clamp(1rem, 7vw, 2.4rem); letter-spacing: .04em; }
 .board-center small { margin-top: 4px; letter-spacing: .38em; }
@@ -102,18 +103,23 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .board-space.is-selected { z-index: 2; box-shadow: inset 0 0 0 3px #b8433c; }
 .board-space.is-mortgaged { background: repeating-linear-gradient(45deg,#f1e7d2,#f1e7d2 4px,#d9d0be 4px,#d9d0be 7px); }
 .board.is-compact .board-space { cursor:default; }
+.board.is-compact button.board-space { cursor:pointer; }
 .property-band { position: absolute; inset: 0 0 auto; height: 22%; background: var(--street); border-bottom: 1px solid rgba(0,0,0,.25); }
+.ownership-bar { position:relative; z-index:3; grid-row:var(--row); grid-column:var(--col); min-width:0; min-height:0; background:var(--owner-color); pointer-events:none; }
+.ownership-bar.edge-bottom { align-self:end; justify-self:stretch; height:8px; transform:translateY(5px); }
+.ownership-bar.edge-left { align-self:stretch; justify-self:start; width:8px; transform:translateX(-5px); }
+.ownership-bar.edge-top { align-self:start; justify-self:stretch; height:8px; transform:translateY(-5px); }
+.ownership-bar.edge-right { align-self:stretch; justify-self:end; width:8px; transform:translateX(5px); }
 .space-name { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .board.is-compact .space-name-full { display:none; }
 .space-tokens { position: absolute; right: 1px; bottom: 1px; display: flex; }
-.token { display: grid; place-items: center; width: 14px; height: 14px; margin-left: -3px; border: 1px solid white; border-radius: 50%; color: white; background: #2f6f59; }
+.token { display: grid; place-items: center; width: 14px; height: 14px; margin-left: -3px; border: 1px solid white; border-radius: 50%; color: white; background: var(--player-color); }
 .token.is-step { animation: token-hop 140ms cubic-bezier(.2,.85,.4,1) both; }
 .token.is-direct-out { animation: token-lift 140ms ease-in both; }
 .token.is-direct-in { animation: token-drop 220ms cubic-bezier(.2,1.4,.45,1) both; }
 @keyframes token-hop { 0% { transform: translateY(1px) scale(.92); } 52% { transform: translateY(-7px) scale(1.12); filter: drop-shadow(0 4px 2px rgba(23,37,31,.3)); } 100% { transform: translateY(0) scale(1); } }
 @keyframes token-lift { to { transform: translateY(-9px) scale(.72); opacity: 0; } }
 @keyframes token-drop { 0% { transform: translateY(-12px) scale(.72); opacity: 0; } 70% { transform: translateY(2px) scale(1.12); opacity: 1; } 100% { transform: translateY(0) scale(1); } }
-.token-2 { background: #b8433c; }.token-3 { background: #315b92; }.token-4 { background: #a8752c; }.token-5 { background: #7a4f83; }.token-6 { background: #2e2e2e; }
 .buildings { position: absolute; left: 1px; bottom: 0; color: #287350; font-size: .5rem; }
 .turn-card, .tab-panel { margin-top: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: 0 10px 28px rgba(38,56,47,.12); }
 .turn-card h2 { margin-bottom: 7px; font-size: 1.6rem; line-height: 1.05; }
@@ -152,7 +158,10 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .deed-sheet { position: relative; width: min(100%,540px); max-height: 84dvh; margin: auto; padding: 28px 20px calc(22px + env(safe-area-inset-bottom)); overflow-y: auto; border-radius: 22px 22px 0 0; background: var(--paper); }
 .close-button { position: absolute; z-index: 2; top: 10px; right: 10px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--paper); font-size: 1.3rem; line-height: 1; }
 .deed-band { height: 58px; margin: -28px -20px 18px; background: #d6cdb9; }.color-brown{background:#8b5a3c}.color-light-blue{background:#63b8d5}.color-pink{background:#cf5b9d}.color-orange{background:#e98a32}.color-red{background:#c9423b}.color-yellow{background:#e0bd3d}.color-green{background:#438d64}.color-dark-blue{background:#315b92}
-.deed-price, .owner-line { color: #64736b; }
+.deed-price, .build-cost, .owner-line { color: #64736b; }
+.build-cost { margin-bottom:8px; font-size:.85rem; }
+.owner-line { display:flex; align-items:center; gap:8px; }
+.owner-swatch { flex:0 0 auto; width:14px; height:14px; border:1px solid rgba(23,37,31,.28); border-radius:50%; background:var(--owner-color); }
 .rent-table > div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .asset-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .asset-summary > div { padding: 13px; border-radius: 12px; background: #e5ded0; }
@@ -194,7 +203,7 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .balance-chip.is-current::after { background:var(--ruby); }
 .balance-chip.is-me { border-color:rgba(47,111,89,.54); background:rgba(248,241,223,.88); }
 .balance-chip.is-bankrupt { opacity:.52; filter:grayscale(1); }
-.balance-token { display:grid; place-items:center; width:28px; height:28px; border:1px solid var(--line); border-radius:50%; background:var(--paper); }
+.balance-token { display:grid; place-items:center; width:28px; height:28px; border:1px solid var(--line); border-radius:50%; background:var(--player-color); }
 .balance-chip strong,.balance-chip small { display:block; }
 .balance-chip strong { max-width:76px; overflow:hidden; font-size:.72rem; text-overflow:ellipsis; white-space:nowrap; }
 .balance-chip small { margin-top:1px; color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.68rem; font-weight:700; }
@@ -576,12 +585,6 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
   .balance-chip::after { height:2px; }
   .balance-token { flex:0 0 8.9dvh; width:8.9dvh; height:8.9dvh; border:1px solid rgba(22,36,30,.28); color:white; }
   .balance-token svg { color:#fff; stroke:#fff; }
-  .balance-chip:nth-child(1) .balance-token { background:#447760; }
-  .balance-chip:nth-child(2) .balance-token { background:#b64c45; }
-  .balance-chip:nth-child(3) .balance-token { background:#406a98; }
-  .balance-chip:nth-child(4) .balance-token { background:#b38643; }
-  .balance-chip:nth-child(5) .balance-token { background:#785782; }
-  .balance-chip:nth-child(6) .balance-token { background:#39433e; }
   .balance-chip strong { max-width:none; font-family:'DM Serif Display',Georgia,serif; font-size:.78rem; font-weight:400; line-height:1; }
   .balance-chip small { margin-top:3px; font-size:.65rem; line-height:1; }
 
@@ -736,7 +739,8 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
   .deed-band { height:26px; margin:-16px -18px 12px; }
   .deed-sheet h2, .leave-sheet h2, .install-sheet h2 { margin-bottom:6px; font-size:1.35rem; }
   .card-sheet .card-detail { margin-bottom:14px; font-size:.9rem; }
-  .deed-price, .owner-line { font-size:.8rem; }
+  .deed-price, .build-cost, .owner-line { font-size:.8rem; }
+  .rent-table { display:grid; grid-template-columns:1fr 1fr; column-gap:18px; }
   .rent-table > div { padding:5px 0; font-size:.82rem; }
   .install-sheet ol { gap:8px; font-size:.88rem; }
 

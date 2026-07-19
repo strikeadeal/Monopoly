@@ -19,6 +19,7 @@ const makeState = () => createGame([
   { id: 'p1', name: 'Alex', token: 'rocket' },
   { id: 'p2', name: 'Sam', token: 'key' }
 ], { mode: 'official' }, () => 0);
+const playerColors = ['#447760', '#b64c45', '#406a98', '#b38643', '#785782', '#39433e'];
 const screenProps = { playerId: 'p1', status: 'online', error: null, send: () => undefined, clearError: () => undefined, onLeave: () => undefined, leaving: false, leaveError: null };
 
 describe('mobile game UI', () => {
@@ -30,12 +31,16 @@ describe('mobile game UI', () => {
     expect(screen.getByLabelText('Sam on GO')).toBeInTheDocument();
   });
 
-  it('renders compact board spaces as a non-interactive overview', () => {
+  it('makes only ownable compact board spaces directly interactive', () => {
     const state = makeState();
-    render(<Board compact state={state} selectedIndex={null} onSelect={() => undefined} />);
+    const onSelect = vi.fn();
+    render(<Board compact state={state} selectedIndex={null} onSelect={onSelect} />);
     const spaces = screen.getAllByTestId('board-space');
     expect(spaces).toHaveLength(BOARD.length);
-    expect(spaces.every((space) => space.tagName === 'DIV')).toBe(true);
+    expect(spaces.filter((space) => space.tagName === 'BUTTON')).toHaveLength(28);
+    expect(spaces.filter((space) => space.tagName === 'DIV')).toHaveLength(12);
+    fireEvent.click(screen.getByRole('button', { name: 'Armadale' }));
+    expect(onSelect).toHaveBeenCalledWith(1);
     expect(screen.queryByRole('button', { name: 'GO' })).toBeNull();
   });
 
@@ -53,6 +58,68 @@ describe('mobile game UI', () => {
     expect(spaces[11]).toHaveClass('edge-left');
     expect(spaces[21]).toHaveClass('edge-top');
     expect(spaces[31]).toHaveClass('edge-right');
+  });
+
+  it('uses the turn order palette for balances, board tokens, and ownership markers', () => {
+    const state = createGame([
+      { id: 'p1', name: 'Alex', token: 'rocket' },
+      { id: 'p2', name: 'Sam', token: 'key' },
+      { id: 'p3', name: 'Jo', token: 'coffee' },
+      { id: 'p4', name: 'Mia', token: 'bolt' },
+      { id: 'p5', name: 'Lee', token: 'star' },
+      { id: 'p6', name: 'Rae', token: 'globe' }
+    ], { mode: 'official' }, () => 0);
+    state.turnOrder = ['p2', 'p1', 'p3', 'p4', 'p5', 'p6'];
+    state.properties[1]!.ownerId = 'p2';
+    render(<GameScreen state={state} {...screenProps} />);
+
+    state.turnOrder.forEach((id, seat) => {
+      const player = state.players.find((candidate) => candidate.id === id)!;
+      expect(screen.getByLabelText(new RegExp(`^${player.name},`)).querySelector('.balance-token')).toHaveStyle(`--player-color: ${playerColors[seat]}`);
+      expect(screen.getByLabelText(`${player.name} on GO`)).toHaveStyle(`--player-color: ${playerColors[seat]}`);
+    });
+    expect(screen.getByTestId('ownership-bar')).toHaveStyle(`--owner-color: ${playerColors[0]}`);
+  });
+
+  it('renders separate ownership markers on all four board edges', () => {
+    const state = makeState();
+    for (const index of [1, 11, 21, 31]) state.properties[index]!.ownerId = 'p1';
+    render(<Board state={state} selectedIndex={null} onSelect={() => undefined} />);
+    const markers = screen.getAllByTestId('ownership-bar');
+    expect(markers).toHaveLength(4);
+    for (const [index, edge] of [[1, 'bottom'], [11, 'left'], [21, 'top'], [31, 'right']] as const) {
+      const marker = markers.find((candidate) => candidate.getAttribute('data-space-index') === String(index));
+      expect(marker).toHaveClass(`edge-${edge}`);
+      expect(marker).toHaveAttribute('data-owner-id', 'p1');
+      expect(marker).toHaveAttribute('aria-hidden', 'true');
+      expect(marker).toHaveStyle('--owner-color: #447760');
+    }
+  });
+
+  it('updates owner names and markers across transfer, mortgage, and return to the Bank', () => {
+    const state = makeState();
+    state.properties[1]!.ownerId = 'p1';
+    const { rerender } = render(<Board state={state} selectedIndex={null} onSelect={() => undefined} />);
+    expect(screen.getByRole('button', { name: 'Armadale, owned by Alex' })).toBeInTheDocument();
+    expect(screen.getByTestId('ownership-bar')).toHaveAttribute('data-owner-id', 'p1');
+
+    const transferred = structuredClone(state);
+    transferred.properties[1]!.ownerId = 'p2';
+    rerender(<Board state={transferred} selectedIndex={null} onSelect={() => undefined} />);
+    expect(screen.getByRole('button', { name: 'Armadale, owned by Sam' })).toBeInTheDocument();
+    expect(screen.getByTestId('ownership-bar')).toHaveAttribute('data-owner-id', 'p2');
+    expect(screen.getByTestId('ownership-bar')).toHaveStyle('--owner-color: #b64c45');
+
+    const mortgaged = structuredClone(transferred);
+    mortgaged.properties[1]!.mortgaged = true;
+    rerender(<Board state={mortgaged} selectedIndex={null} onSelect={() => undefined} />);
+    expect(screen.getByTestId('ownership-bar')).toBeInTheDocument();
+
+    const bankOwned = structuredClone(mortgaged);
+    bankOwned.properties[1] = { ownerId: null, mortgaged: false, buildings: 0 };
+    rerender(<Board state={bankOwned} selectedIndex={null} onSelect={() => undefined} />);
+    expect(screen.queryByTestId('ownership-bar')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Armadale' })).toBeInTheDocument();
   });
 
   it('offers legible nearby spaces and an all-spaces browser', () => {
@@ -225,7 +292,10 @@ describe('mobile game UI', () => {
     vi.stubGlobal('matchMedia', vi.fn((query: string) => ({ matches: query === COMPACT_LAYOUT_QUERY || query === LANDSCAPE_PHONE_QUERY, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia);
     const { container } = render(<GameScreen state={makeState()} {...screenProps} />);
     const spaces = screen.getAllByTestId('board-space');
-    expect(spaces.every((space) => space.tagName === 'DIV')).toBe(true);
+    expect(spaces.filter((space) => space.tagName === 'BUTTON')).toHaveLength(28);
+    expect(spaces.filter((space) => space.tagName === 'DIV')).toHaveLength(12);
+    fireEvent.click(screen.getByRole('button', { name: 'Armadale' }));
+    expect(screen.getByRole('dialog', { name: 'Armadale' })).toBeInTheDocument();
     expect(container.querySelector('.game-shell.is-landscape-phone')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open board directory' })).toBeInTheDocument();
     expect(container.querySelector('.table-ledger.is-strip')).toBeInTheDocument();
@@ -247,7 +317,7 @@ describe('mobile game UI', () => {
     const state = makeState();
     state.properties[39]!.ownerId = 'p1';
     render(<GameScreen state={state} {...screenProps} />);
-    fireEvent.click(screen.getByRole('button', { name: `${BOARD[39]!.name}, owned` }));
+    fireEvent.click(screen.getByRole('button', { name: `${BOARD[39]!.name}, owned by Alex` }));
     expect(screen.getByRole('button', { name: 'Build' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Sell building' })).toBeDisabled();
     expect(screen.getByText('Own the full color group first.')).toBeInTheDocument();
@@ -305,8 +375,65 @@ describe('mobile game UI', () => {
     const state = makeState();
     state.properties[5]!.ownerId = 'p1';
     render(<GameScreen state={state} {...screenProps} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Fremantle Line, owned' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fremantle Line, owned by Alex' }));
     expect(screen.queryByText('Only streets can be improved.')).not.toBeInTheDocument();
+  });
+
+  it('shows the street build cost and complete rent schedule in an accessible deed dialog', () => {
+    render(<GameScreen state={makeState()} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Peppermint Grove' }));
+    const dialog = screen.getByRole('dialog', { name: 'Peppermint Grove' });
+    expect(dialog).toHaveTextContent('Purchase $400 · Mortgage $200');
+    expect(dialog).toHaveTextContent('Build houses or hotel: $200 each');
+    expect([...dialog.querySelectorAll('.rent-table > div')].map((row) => row.textContent)).toEqual([
+      'Base rent$50', '1 house$200', '2 houses$600', '3 houses$1,400', '4 houses$1,700', 'Hotel$2,000'
+    ]);
+    expect(dialog).toHaveTextContent('Available from the Bank');
+  });
+
+  it('shows the complete train-line and utility rent schedules', () => {
+    const { rerender } = render(<GameScreen state={makeState()} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Fremantle Line' }));
+    let dialog = screen.getByRole('dialog', { name: 'Fremantle Line' });
+    expect(dialog).toHaveTextContent('Purchase $200 · Mortgage $100');
+    expect([...dialog.querySelectorAll('.rent-table > div')].map((row) => row.textContent)).toEqual([
+      '1 train line$25', '2 train lines$50', '3 train lines$100', '4 train lines$200'
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close property details' }));
+    rerender(<GameScreen state={makeState()} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Electric Company' }));
+    dialog = screen.getByRole('dialog', { name: 'Electric Company' });
+    expect(dialog).toHaveTextContent('Purchase $150 · Mortgage $75');
+    expect([...dialog.querySelectorAll('.rent-table > div')].map((row) => row.textContent)).toEqual([
+      '1 utility4× dice total', '2 utilities10× dice total'
+    ]);
+  });
+
+  it('shows the owner swatch and keeps deed actions exclusive to the local owner', () => {
+    const mine = makeState();
+    mine.properties[1]!.ownerId = 'p1';
+    mine.properties[1]!.mortgaged = true;
+    const { rerender } = render(<GameScreen state={mine} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Armadale, owned by Alex' }));
+    let dialog = screen.getByRole('dialog', { name: 'Armadale' });
+    expect(dialog.querySelector('.owner-swatch')).toHaveStyle('--owner-color: #447760');
+    expect(dialog).toHaveTextContent('Owned by Alex · Mortgaged');
+    expect(screen.getByRole('button', { name: 'Build' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sell building' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unmortgage' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close property details' }));
+    const theirs = makeState();
+    theirs.properties[1]!.ownerId = 'p2';
+    rerender(<GameScreen state={theirs} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Armadale, owned by Sam' }));
+    dialog = screen.getByRole('dialog', { name: 'Armadale' });
+    expect(dialog.querySelector('.owner-swatch')).toHaveStyle('--owner-color: #b64c45');
+    expect(dialog).toHaveTextContent('Owned by Sam');
+    expect(screen.queryByRole('button', { name: 'Build' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sell building' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mortgage' })).toBeNull();
   });
 
   it('uses a lift and drop when moving directly to Jail', async () => {
