@@ -1,5 +1,8 @@
 import type { BoardSpace, GameCard, RailroadSpace, StreetSpace, UtilitySpace } from './types';
 
+export const RAILROAD_RENTS = [25, 50, 100, 200] as const;
+export const UTILITY_RENT_MULTIPLIERS = [4, 10] as const;
+
 const street = (index: number, name: string, color: StreetSpace['color'], price: number, buildCost: number, rents: StreetSpace['rents']): StreetSpace => ({
   index, name, type: 'street', color, price, mortgage: price / 2, buildCost, rents
 });
