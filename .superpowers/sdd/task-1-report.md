@@ -14,7 +14,7 @@
 
 ## Commit
 
-Pending commit.
+`492019fb8358ff59ffd973139220f089f6b0af61` — `Extract non-street rent constants`
 
 ## Self-review
 
