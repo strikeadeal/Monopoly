@@ -106,10 +106,10 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .board.is-compact button.board-space { cursor:pointer; }
 .property-band { position: absolute; inset: 0 0 auto; height: 22%; background: var(--street); border-bottom: 1px solid rgba(0,0,0,.25); }
 .ownership-bar { position:relative; z-index:3; grid-row:var(--row); grid-column:var(--col); min-width:0; min-height:0; background:var(--owner-color); pointer-events:none; }
-.ownership-bar.edge-bottom { align-self:end; justify-self:stretch; height:4px; transform:translateY(7px); }
-.ownership-bar.edge-left { align-self:stretch; justify-self:start; width:4px; transform:translateX(-7px); }
-.ownership-bar.edge-top { align-self:start; justify-self:stretch; height:4px; transform:translateY(-7px); }
-.ownership-bar.edge-right { align-self:stretch; justify-self:end; width:4px; transform:translateX(7px); }
+.ownership-bar.edge-bottom { align-self:end; justify-self:stretch; height:8px; transform:translateY(5px); }
+.ownership-bar.edge-left { align-self:stretch; justify-self:start; width:8px; transform:translateX(-5px); }
+.ownership-bar.edge-top { align-self:start; justify-self:stretch; height:8px; transform:translateY(-5px); }
+.ownership-bar.edge-right { align-self:stretch; justify-self:end; width:8px; transform:translateX(5px); }
 .space-name { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .board.is-compact .space-name-full { display:none; }
 .space-tokens { position: absolute; right: 1px; bottom: 1px; display: flex; }

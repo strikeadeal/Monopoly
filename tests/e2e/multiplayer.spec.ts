@@ -253,6 +253,7 @@ test('two isolated phones create, join, start, and recover the same room', async
 type DebugState = {
   phase: { type: string; spaceIndex?: number };
   properties: Record<number, { ownerId: string | null }>;
+  players: { id: string; name: string }[];
   revision: number;
   currentPlayerId: string;
 };
@@ -269,14 +270,18 @@ async function debugSend(page: Page, command: Record<string, unknown> & { type: 
 
 async function waitForDebugState(page: Page, predicate: (state: DebugState) => boolean) {
   await expect.poll(async () => {
-    const state = await page.evaluate(() => {
-      const debug = (window as typeof window & {
-        __monopolyDebug?: { getState: () => DebugState | null };
-      }).__monopolyDebug;
-      return debug?.getState() ?? null;
-    });
+    const state = await readDebugState(page);
     return Boolean(state && predicate(state));
   }).toBe(true);
+}
+
+async function readDebugState(page: Page) {
+  return page.evaluate(() => {
+    const debug = (window as typeof window & {
+      __monopolyDebug?: { getState: () => DebugState | null };
+    }).__monopolyDebug;
+    return debug?.getState() ?? null;
+  });
 }
 
 test('two landscape phones preserve authoritative ownership through reconnect and reload', async ({ browser }, testInfo) => {
@@ -332,8 +337,14 @@ test('two landscape phones preserve authoritative ownership through reconnect an
     await waitForDebugState(host, (state) => state.phase.type === 'purchase' && state.phase.spaceIndex === 3);
     await debugSend(host, { type: 'BUY_PROPERTY' });
     await waitForDebugState(host, (state) => Boolean(state.properties[3]?.ownerId));
+    const afterMidlandPurchase = await readDebugState(host);
+    const alexId = afterMidlandPurchase?.properties[3]?.ownerId;
+    expect(alexId).toBeTruthy();
     await debugSend(host, { type: 'END_TURN' });
-    await waitForDebugState(guest, (state) => state.currentPlayerId !== state.properties[3]?.ownerId && state.phase.type === 'awaiting-roll');
+    await waitForDebugState(guest, (state) => state.properties[3]?.ownerId === alexId
+      && state.currentPlayerId !== alexId
+      && state.phase.type === 'awaiting-roll'
+      && state.revision > afterMidlandPurchase!.revision);
 
     await debugSend(guest, { type: 'ROLL', dice: [1, 5] });
     await waitForDebugState(guest, (state) => state.phase.type === 'purchase' && state.phase.spaceIndex === 6);
@@ -346,15 +357,38 @@ test('two landscape phones preserve authoritative ownership through reconnect an
       await expect(page.getByTestId('ownership-bar')).toHaveCount(2);
       await expect(page.locator('[data-testid="ownership-bar"][data-space-index="3"]')).toHaveCount(1);
       await expect(page.locator('[data-testid="ownership-bar"][data-space-index="6"]')).toHaveCount(1);
-      const palette = await page.evaluate(() => ({
-        bars: [...document.querySelectorAll<HTMLElement>('[data-testid="ownership-bar"]')].map((element) => getComputedStyle(element).backgroundColor),
-        balances: [...document.querySelectorAll<HTMLElement>('.balance-token')].map((element) => getComputedStyle(element).backgroundColor)
-      }));
-      expect(palette.bars).toEqual(palette.balances);
-      expect(new Set(palette.bars).size).toBe(2);
+      const state = await readDebugState(page);
+      const ownershipColors: string[] = [];
+      for (const spaceIndex of [3, 6]) {
+        const ownerId = state?.properties[spaceIndex]?.ownerId;
+        const owner = state?.players.find((player) => player.id === ownerId);
+        expect(owner).toBeTruthy();
+        const barColor = await page.locator(`[data-testid="ownership-bar"][data-space-index="${spaceIndex}"][data-owner-id="${ownerId}"]`)
+          .evaluate((element) => getComputedStyle(element).backgroundColor);
+        const balanceColor = await page.getByLabel(new RegExp(`^${owner!.name},`, 'u')).locator('.balance-token')
+          .evaluate((element) => getComputedStyle(element).backgroundColor);
+        expect(barColor).toBe(balanceColor);
+        ownershipColors.push(barColor);
+      }
+      expect(new Set(ownershipColors).size).toBe(2);
     }
 
-    await guest.getByLabel('Midland, owned by Alex').click();
+    const midlandButtonBox = await guest.getByLabel('Midland, owned by Alex').boundingBox();
+    const midlandBarBox = await guest.locator('[data-testid="ownership-bar"][data-space-index="3"]').boundingBox();
+    expect(midlandButtonBox).not.toBeNull();
+    expect(midlandBarBox).not.toBeNull();
+    const markerIntersection = {
+      left: Math.max(midlandButtonBox!.x, midlandBarBox!.x),
+      top: Math.max(midlandButtonBox!.y, midlandBarBox!.y),
+      right: Math.min(midlandButtonBox!.x + midlandButtonBox!.width, midlandBarBox!.x + midlandBarBox!.width),
+      bottom: Math.min(midlandButtonBox!.y + midlandButtonBox!.height, midlandBarBox!.y + midlandBarBox!.height)
+    };
+    expect(markerIntersection.right - markerIntersection.left).toBeGreaterThan(0);
+    expect(markerIntersection.bottom - markerIntersection.top).toBeGreaterThan(0);
+    await guest.mouse.click(
+      markerIntersection.left + (markerIntersection.right - markerIntersection.left) / 2,
+      markerIntersection.top + (markerIntersection.bottom - markerIntersection.top) / 2
+    );
     const deed = guest.getByRole('dialog', { name: 'Midland' });
     await expect(deed).toBeVisible();
     await expect(deed.getByText('Owned by Alex')).toBeVisible();
@@ -384,12 +418,18 @@ test('two landscape phones preserve authoritative ownership through reconnect an
     await expect(guest.getByRole('heading', { name: 'Reconnecting to the table' })).toBeVisible();
     await guestContext.setOffline(false);
     await expect(guest.getByText('Live')).toBeVisible({ timeout: 10_000 });
+    await expect(guest.getByLabel('Midland, owned by Alex')).toBeVisible();
+    await expect(guest.getByLabel('Gosnells, owned by Sam')).toBeVisible();
     await expect(guest.getByTestId('ownership-bar')).toHaveCount(2);
+    await expect(guest.locator('[data-testid="ownership-bar"][data-space-index="3"]')).toHaveCount(1);
+    await expect(guest.locator('[data-testid="ownership-bar"][data-space-index="6"]')).toHaveCount(1);
     await guest.reload();
     await expect(guest.getByText('Live')).toBeVisible();
     await expect(guest.getByLabel('Midland, owned by Alex')).toBeVisible();
     await expect(guest.getByLabel('Gosnells, owned by Sam')).toBeVisible();
     await expect(guest.getByTestId('ownership-bar')).toHaveCount(2);
+    await expect(guest.locator('[data-testid="ownership-bar"][data-space-index="3"]')).toHaveCount(1);
+    await expect(guest.locator('[data-testid="ownership-bar"][data-space-index="6"]')).toHaveCount(1);
     await expect(host.getByTestId('ownership-bar')).toHaveCount(2);
 
     expect(pageErrors).toEqual([]);
