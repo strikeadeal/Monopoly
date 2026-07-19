@@ -14,7 +14,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run dev --workspace @monopoly/worker -- --port 8787',
+      command: 'npm run dev --workspace @monopoly/worker -- --port 8787 --var ALLOW_TEST_DICE:1',
       url: 'http://127.0.0.1:8787/api/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000
