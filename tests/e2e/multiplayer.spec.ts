@@ -439,3 +439,55 @@ test('two landscape phones preserve authoritative ownership through reconnect an
     await guestContext.close();
   }
 });
+
+test('a lobby with auctions off declines a property straight back to the Bank', async ({ browser }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone-portrait', 'The auctions-off flow is protocol behavior; one project keeps the suite lean.');
+  test.setTimeout(60_000);
+  const hostContext = await newProjectContext(browser, testInfo);
+  const guestContext = await newProjectContext(browser, testInfo);
+  const host = await hostContext.newPage();
+  const guest = await guestContext.newPage();
+  const pageErrors: string[] = [];
+  host.on('pageerror', (error) => pageErrors.push(`host: ${error.message}`));
+  guest.on('pageerror', (error) => pageErrors.push(`guest: ${error.message}`));
+
+  try {
+    await host.goto('/#/');
+    await host.getByLabel('Your name').fill('Alex');
+    await host.getByRole('button', { name: 'Create game' }).click();
+    await host.getByRole('button', { name: 'Rocket' }).click();
+    await host.getByRole('button', { name: 'Not ready' }).click();
+    const roomCode = await host.locator('.table-header strong').innerText();
+
+    const auctionToggle = host.getByRole('button', { name: 'Auctions on' });
+    await expect(auctionToggle).toHaveAttribute('aria-pressed', 'true');
+    await auctionToggle.click();
+    await expect(host.getByRole('button', { name: 'Auctions off' })).toHaveAttribute('aria-pressed', 'false');
+
+    await guest.goto(`/#/join/${roomCode}`);
+    await guest.getByLabel('Your name').fill('Sam');
+    await guest.getByRole('button', { name: 'Join game' }).click();
+    await guest.getByRole('button', { name: 'Key' }).click();
+    await guest.getByRole('button', { name: 'Not ready' }).click();
+    await expect(guest.getByText('Official rules · Auctions off')).toBeVisible();
+
+    await expect(host.getByText('Players 2/6')).toBeVisible();
+    await host.getByRole('button', { name: 'Start game' }).click();
+    await expect(host.getByLabel('Monopoly board')).toBeVisible();
+
+    await debugSend(host, { type: 'ROLL', dice: [1, 2] });
+    await waitForDebugState(host, (state) => state.phase.type === 'purchase' && state.phase.spaceIndex === 3);
+    await expect(host.getByRole('button', { name: 'Decline' })).toBeVisible();
+    expect(await host.getByText('LIVE AUCTION').count()).toBe(0);
+    await host.getByRole('button', { name: 'Decline' }).click();
+    await waitForDebugState(host, (state) => state.phase.type === 'awaiting-end' && state.properties[3]!.ownerId === null);
+    expect(await host.getByText('LIVE AUCTION').count()).toBe(0);
+    expect(await guest.getByText('LIVE AUCTION').count()).toBe(0);
+    await expect(host.getByText('Alex declined Midland. It stays with the Bank.')).toBeVisible();
+
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await hostContext.close();
+    await guestContext.close();
+  }
+});

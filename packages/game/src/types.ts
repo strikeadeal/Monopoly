@@ -32,7 +32,7 @@ export interface PlayerState extends PlayerSeed {
 }
 export interface PropertyState { ownerId: string | null; mortgaged: boolean; buildings: 0 | 1 | 2 | 3 | 4 | 5 }
 export interface ActivityEntry { id: string; at: number; text: string; tone?: 'money' | 'warning' | 'success' }
-export interface GameSettings { mode: 'official' | 'quick'; durationMinutes?: 45 | 60 | 90 }
+export interface GameSettings { mode: 'official' | 'quick'; durationMinutes?: 45 | 60 | 90; auctions?: boolean }
 export interface TradeOffer { id: string; fromPlayerId: string; toPlayerId: string; offeredCash: number; requestedCash: number; offeredProperties: number[]; requestedProperties: number[]; offeredJailCards: string[]; requestedJailCards: string[] }
 export interface LastCardDraw { drawId: string; cardId: string; deck: 'chance' | 'community-chest'; playerId: string }
 export type MovementSegment =
@@ -100,6 +100,7 @@ export type GameCommand =
   | { type: 'ADD_PLAYER'; player: PlayerSeed }
   | { type: 'SET_TOKEN'; playerId: string; token: TokenId }
   | { type: 'SET_READY'; playerId: string; ready: boolean }
+  | { type: 'SET_AUCTIONS'; playerId: string; enabled: boolean }
   | { type: 'START_GAME'; playerId: string }
   | { type: 'ROLL'; playerId: string; dice?: [number, number] }
   | { type: 'BUY_PROPERTY'; playerId: string }

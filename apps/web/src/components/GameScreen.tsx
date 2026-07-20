@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { BOARD, PROPERTY_SPACES, RAILROAD_RENTS, UTILITY_RENT_MULTIPLIERS, getPropertyActionAvailability, netWorth, type GameState, type StreetSpace, type TradeOffer } from '@monopoly/game';
+import { BOARD, PROPERTY_SPACES, RAILROAD_RENTS, UTILITY_RENT_MULTIPLIERS, auctionsEnabled, getPropertyActionAvailability, netWorth, type GameState, type StreetSpace, type TradeOffer } from '@monopoly/game';
 import { Board } from './Board';
 import { ActivityTimeline } from './ActivityTimeline';
 import { BoardNavigator } from './BoardNavigator';
@@ -9,6 +9,7 @@ import { LeaveRoom } from './LeaveRoom';
 import { PlayerBalances } from './PlayerBalances';
 import { TableLedger } from './TableLedger';
 import { useCompactLayout, useLandscapePhone } from '../useCompactLayout';
+import { useMoneyAnnouncements } from '../useMoneyAnnouncements';
 import { useMovementAnimation } from '../useMovementAnimation';
 import { GROUP_COLORS as groupColors, PLAYER_COLORS } from '../theme';
 
@@ -97,24 +98,53 @@ function TurnActions({ state, playerId, send, rolling, onOpenAssets, onLeave, le
   if (phase.type === 'finished') { const winners = phase.winnerIds.map((id) => state.players.find((player) => player.id === id)); return <div className="turn-card winner-card"><span className="eyeline">GAME OVER</span><h2>{winners.map((player) => player?.name).join(' & ')} wins</h2><p>{phase.reason === 'timer' ? 'Highest net worth when time expired.' : 'Last player standing.'} Final net worth {winners.map((player) => player ? money.format(netWorth(state, player.id)) : '').join(' & ')}.</p><button className="primary-button" disabled={leaving} onClick={() => void onLeave()}>{leaving ? 'Leaving…' : 'Leave the table'}</button></div>; }
   if (!mine && phase.type !== 'auction' && !(phase.type === 'debt' && phase.playerId === playerId)) return <div className="turn-card"><span className="eyeline">UP NEXT</span><h2>{state.players.find((player) => player.id === state.currentPlayerId)?.name} is taking a turn</h2>{state.lastRoll ? <div className="dice-line"><DiceRoll roll={state.lastRoll} rolling={rolling} /></div> : null}<p>Watch the board—your controls will appear here.</p></div>;
   if (phase.type === 'awaiting-roll') return <div className="turn-card"><span className="eyeline">YOUR MOVE</span><h2>{me.inJail ? 'Choose your way out.' : 'Roll the dice.'}</h2>{me.inJail ? <div className="action-row"><button disabled={me.cash < 50} onClick={() => send({ type: 'PAY_JAIL_FINE' })}>Pay $50</button>{me.jailFreeCards.length ? <button onClick={() => send({ type: 'USE_JAIL_CARD' })}>Use card</button> : null}<button className="primary-button" onClick={() => send({ type: 'ROLL' })}>Try doubles</button></div> : <button className="roll-button" onClick={() => send({ type: 'ROLL' })}><span>ROLL</span><i>◆ ◆</i></button>}</div>;
-  if (phase.type === 'purchase') { const space = BOARD[phase.spaceIndex] as Extract<(typeof BOARD)[number], { price: number }>; const canAfford = me.cash >= space.price; return <div className="turn-card purchase-card"><span className="eyeline">AVAILABLE</span>{state.lastRoll ? <div className="dice-line"><DiceRoll roll={state.lastRoll} rolling={rolling} /></div> : null}<h2>{space.name}</h2><p>{canAfford ? `Buy for ${money.format(space.price)} or send it to auction.` : `It costs ${money.format(space.price)} and you have ${money.format(me.cash)} — send it to auction.`}</p><div className="action-row"><button className="primary-button" disabled={!canAfford} onClick={() => send({ type: 'BUY_PROPERTY' })}>Buy</button><button onClick={() => send({ type: 'DECLINE_PROPERTY', now: Date.now() })}>Auction</button></div></div>; }
-  if (phase.type === 'auction') return <Auction state={state} send={send} />;
+  if (phase.type === 'purchase') { const space = BOARD[phase.spaceIndex] as Extract<(typeof BOARD)[number], { price: number }>; const canAfford = me.cash >= space.price; const auctions = auctionsEnabled(state.settings); return <div className="turn-card purchase-card"><span className="eyeline">AVAILABLE</span>{state.lastRoll ? <div className="dice-line"><DiceRoll roll={state.lastRoll} rolling={rolling} /></div> : null}<h2>{space.name}</h2><p>{canAfford ? `Buy for ${money.format(space.price)} or ${auctions ? 'send it to auction' : 'decline and it stays with the Bank'}.` : `It costs ${money.format(space.price)} and you have ${money.format(me.cash)} — ${auctions ? 'send it to auction' : 'decline and it stays with the Bank'}.`}</p><div className="action-row"><button className="primary-button" disabled={!canAfford} onClick={() => send({ type: 'BUY_PROPERTY' })}>Buy</button><button onClick={() => send({ type: 'DECLINE_PROPERTY', now: Date.now() })}>{auctions ? 'Auction' : 'Decline'}</button></div></div>; }
+  if (phase.type === 'auction') return <Auction state={state} playerId={playerId} send={send} />;
   if (phase.type === 'debt') return <DebtCard state={state} playerId={playerId} send={send} onOpenAssets={onOpenAssets} />;
   return <div className="turn-card"><span className="eyeline">TURN COMPLETE</span>{state.lastRoll ? <div className="dice-line"><DiceRoll roll={state.lastRoll} rolling={rolling} /></div> : null}<h2>{state.lastRoll ? `You rolled ${state.lastRoll[0]} + ${state.lastRoll[1]}.` : 'Everything is settled.'}</h2><button className="primary-button" onClick={() => send({ type: 'END_TURN' })}>{state.rolledDoubles ? 'Roll again' : 'End turn'}</button></div>;
 }
 function MovementTurnCard({ state, playerName, rolling }: { state: GameState; playerName: string; rolling: boolean }) {
   return <div className="turn-card movement-card"><span className="eyeline">ON THE MOVE</span>{state.lastRoll ? <div className="dice-line"><DiceRoll roll={state.lastRoll} rolling={rolling} /></div> : null}<h2>{playerName} is moving…</h2><p>Follow the token around the board. Landing actions will appear when it settles.</p></div>;
 }
-function Auction({ state, send }: { state: GameState; send: Sender }) {
-  const phase = state.phase; const [bid, setBid] = useState(10); if (phase.type !== 'auction') return null;
+function Auction({ state, playerId, send }: { state: GameState; playerId: string; send: Sender }) {
+  const phase = state.phase; const [bidText, setBidText] = useState(''); if (phase.type !== 'auction') return null;
+  const me = state.players.find((player) => player.id === playerId)!;
   const minBid = phase.bid ? phase.bid + 1 : 10;
-  const amount = Math.max(bid, minBid);
-  return <div className="turn-card auction-card"><span className="eyeline">LIVE AUCTION</span><h2>{BOARD[phase.spaceIndex]!.name}</h2><p className="bid-line"><strong className="bid-value">{phase.bid ? money.format(phase.bid) : 'Opening at $10'}</strong><span>{phase.bidderId ? `${state.players.find((player) => player.id === phase.bidderId)?.name} leads` : 'No bids yet'}</span></p><div className="bid-controls"><input type="number" min={minBid} value={amount} onChange={(event) => setBid(Number(event.target.value))} aria-label="Bid amount" /><button className="primary-button" onClick={() => send({ type: 'PLACE_BID', amount, now: Date.now() })}>Bid {money.format(amount)}</button><button onClick={() => send({ type: 'PASS_AUCTION' })}>Pass</button></div></div>;
+  const parsed = Number(bidText);
+  const valid = bidText !== '' && Number.isSafeInteger(parsed) && parsed >= minBid && parsed <= me.cash;
+  const canCover = me.cash >= minBid;
+  return <div className="turn-card auction-card"><span className="eyeline">LIVE AUCTION</span><h2>{BOARD[phase.spaceIndex]!.name}</h2><p className="bid-line"><strong className="bid-value">{phase.bid ? money.format(phase.bid) : 'Opening at $10'}</strong><span>{phase.bidderId ? `${state.players.find((player) => player.id === phase.bidderId)?.name} leads` : 'No bids yet'}</span></p><p className="bid-hint" id="bid-help">{canCover ? `Minimum ${money.format(minBid)} · You have ${money.format(me.cash)}` : `You can't cover the ${money.format(minBid)} minimum — pass.`}</p><div className="bid-controls"><input type="number" inputMode="numeric" min={minBid} max={me.cash} placeholder={String(minBid)} value={bidText} onChange={(event) => setBidText(event.target.value)} aria-label="Bid amount" aria-describedby="bid-help" aria-invalid={bidText !== '' && !valid} /><button className="primary-button" disabled={!valid} onClick={() => send({ type: 'PLACE_BID', amount: parsed, now: Date.now() })}>{valid ? `Bid ${money.format(parsed)}` : 'Bid'}</button><button onClick={() => send({ type: 'PASS_AUCTION' })}>Pass</button></div></div>;
+}
+function AssetSummary({ state, playerId }: { state: GameState; playerId: string }) {
+  const player = state.players.find((candidate) => candidate.id === playerId)!;
+  return <div className="asset-summary"><div><span>Cash</span><strong>{money.format(player.cash)}</strong></div><div><span>Net worth</span><strong>{money.format(netWorth(state, playerId))}</strong></div></div>;
+}
+function DeedGroups({ state, playerId, send }: { state: GameState; playerId: string; send?: Sender }) {
+  const owned = PROPERTY_SPACES.filter((space) => state.properties[space.index]?.ownerId === playerId);
+  const groups = [...new Set(owned.map(propertyGroup))];
+  if (!owned.length) return null;
+  return <div className="deed-groups">{groups.map((group) => { const groupOwned = owned.filter((space) => propertyGroup(space) === group); const groupTotal = PROPERTY_SPACES.filter((space) => propertyGroup(space) === group).length; return <section className="deed-group" key={group} style={{ '--group-color': groupColors[group] } as CSSProperties}><header><h3>{groupNames[group]}</h3><span>{groupOwned.length} of {groupTotal} deeds</span></header><div className="deed-list">{groupOwned.map((space) => { const property = state.properties[space.index]!; const statusText = property.mortgaged ? 'Mortgaged' : property.buildings === 5 ? 'Hotel' : property.buildings ? `${property.buildings} houses` : 'Unimproved'; const actions = send ? getPropertyActionAvailability(state, playerId, space.index) : null; const action = actions ? (property.mortgaged ? actions.unmortgage : actions.mortgage) : null; return <article key={space.index}><span className="mini-band" /><div><strong>{space.name}</strong><small>{statusText}</small></div>{send && action ? <button disabled={!action.allowed} title={action.reason} onClick={() => send({ type: property.mortgaged ? 'UNMORTGAGE' : 'MORTGAGE', spaceIndex: space.index })}>{property.mortgaged ? 'Unmortgage' : 'Mortgage'}</button> : null}</article>; })}</div></section>; })}</div>;
 }
 function Assets({ state, playerId, send }: { state: GameState; playerId: string; send: Sender }) {
-  const me = state.players.find((player) => player.id === playerId)!; const owned = PROPERTY_SPACES.filter((space) => state.properties[space.index]?.ownerId === playerId);
-  const groups = [...new Set(owned.map(propertyGroup))];
-  return <section className="tab-panel asset-panel"><div className="asset-summary"><div><span>Cash</span><strong>{money.format(me.cash)}</strong></div><div><span>Net worth</span><strong>{money.format(netWorth(state, playerId))}</strong></div></div><div className="panel-heading"><h2>Your deeds</h2><span>{owned.length} owned</span></div>{owned.length ? <div className="deed-groups">{groups.map((group) => { const groupOwned = owned.filter((space) => propertyGroup(space) === group); const groupTotal = PROPERTY_SPACES.filter((space) => propertyGroup(space) === group).length; return <section className="deed-group" key={group} style={{ '--group-color': groupColors[group] } as CSSProperties}><header><h3>{groupNames[group]}</h3><span>{groupOwned.length} of {groupTotal} deeds</span></header><div className="deed-list">{groupOwned.map((space) => { const property = state.properties[space.index]!; const actions = getPropertyActionAvailability(state, playerId, space.index); const action = property.mortgaged ? actions.unmortgage : actions.mortgage; return <article key={space.index}><span className="mini-band" /><div><strong>{space.name}</strong><small>{property.mortgaged ? 'Mortgaged' : property.buildings === 5 ? 'Hotel' : property.buildings ? `${property.buildings} houses` : 'Unimproved'}</small></div><button disabled={!action.allowed} title={action.reason} onClick={() => send({ type: property.mortgaged ? 'UNMORTGAGE' : 'MORTGAGE', spaceIndex: space.index })}>{property.mortgaged ? 'Unmortgage' : 'Mortgage'}</button></article>; })}</div></section>; })}</div> : <p className="empty-copy">No deeds yet. Your first purchase will appear here.</p>}<p className="bank-stock">Bank stock: {state.bankHouses} houses · {state.bankHotels} hotels</p></section>;
+  const owned = PROPERTY_SPACES.filter((space) => state.properties[space.index]?.ownerId === playerId);
+  return <section className="tab-panel asset-panel"><AssetSummary state={state} playerId={playerId} /><div className="panel-heading"><h2>Your deeds</h2><span>{owned.length} owned</span></div>{owned.length ? <DeedGroups state={state} playerId={playerId} send={send} /> : <p className="empty-copy">No deeds yet. Your first purchase will appear here.</p>}<p className="bank-stock">Bank stock: {state.bankHouses} houses · {state.bankHotels} hotels</p></section>;
+}
+function PlayerAssetsSheet({ state, viewPlayerId, onClose }: { state: GameState; viewPlayerId: string; onClose: () => void }) {
+  const player = state.players.find((candidate) => candidate.id === viewPlayerId);
+  if (!player) return null;
+  const owned = PROPERTY_SPACES.filter((space) => state.properties[space.index]?.ownerId === viewPlayerId);
+  const color = PLAYER_COLORS[state.turnOrder.indexOf(viewPlayerId)];
+  const headingId = `player-assets-${viewPlayerId}`;
+  return <div className="drawer-backdrop" onClick={onClose}>
+    <section className="deed-sheet player-assets-sheet" role="dialog" aria-labelledby={headingId} onClick={(event) => event.stopPropagation()}>
+      <button className="close-button" onClick={onClose} aria-label="Close player assets">×</button>
+      <span className="eyeline">PLAYER ASSETS</span>
+      <h2 id={headingId}><span className="owner-swatch" aria-hidden="true" style={{ '--owner-color': color } as CSSProperties} />{player.name}{player.bankrupt ? ' · Bankrupt' : ''}</h2>
+      <AssetSummary state={state} playerId={viewPlayerId} />
+      <div className="panel-heading"><h2>Deeds</h2><span>{owned.length} owned</span></div>
+      {owned.length ? <DeedGroups state={state} playerId={viewPlayerId} /> : <p className="empty-copy">{player.name} owns no deeds yet.</p>}
+    </section>
+  </div>;
 }
 function Trade({ state, playerId, send }: { state: GameState; playerId: string; send: Sender }) {
   const others = state.players.filter((player) => player.id !== playerId && !player.bankrupt); const [to, setTo] = useState(others[0]?.id ?? ''); const [giveCash, setGiveCash] = useState(0); const [takeCash, setTakeCash] = useState(0); const [give, setGive] = useState<number[]>([]); const [take, setTake] = useState<number[]>([]);
@@ -141,8 +171,10 @@ function Trade({ state, playerId, send }: { state: GameState; playerId: string; 
 export function GameScreen({ state, playerId, status, error, send, clearError, onLeave, leaving, leaveError }: { state: GameState; playerId: string; status: string; error: string | null; send: Sender; clearError: () => void; onLeave: () => void | Promise<void>; leaving: boolean; leaveError: string | null }) {
   const [selected, setSelected] = useState<number | null>(null); const [tab, setTab] = useState<GameSection>('game');
   const [dismissedDrawId, setDismissedDrawId] = useState<string | null>(null);
+  const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
   const compact = useCompactLayout();
   const landscapePhone = useLandscapePhone();
+  const moneyFeed = useMoneyAnnouncements(state, status);
   const rolling = useDiceAnimation(state.lastRoll);
   const movement = useMovementAnimation(state);
   const lastCard = state.lastCard ?? null;
@@ -166,15 +198,18 @@ export function GameScreen({ state, playerId, status, error, send, clearError, o
   const sections: GameSection[] = ['game', 'assets', 'trade', 'activity'];
   return <main className={`game-shell${landscapePhone ? ' is-landscape-phone' : ''}`}>
     <span className="sr-only" aria-live="polite">{movement.announcement}</span>
+    <span className="sr-only" aria-live="polite">{moneyFeed.banner?.text ?? ''}</span>
     <header className="status-rail"><div><span className={`status-dot ${status}`} />{status === 'online' ? 'Live' : 'Reconnecting'}</div><strong>{state.phase.type === 'finished' ? 'Game over' : `${current?.name}${current?.id === playerId ? ' · your turn' : ' · playing'}`}</strong><span>{timer ?? `Round ${state.round}`}</span>{state.hostPlayerId === playerId && state.phase.type !== 'finished' ? <button className="table-control" aria-label={state.phase.type === 'paused' ? 'Resume game' : 'Pause game'} data-tooltip={state.phase.type === 'paused' ? 'Resume game' : 'Pause game'} onClick={() => send({ type: state.phase.type === 'paused' ? 'RESUME' : 'PAUSE', now: Date.now() })}><PauseIcon paused={state.phase.type === 'paused'} /></button> : <span />}<LeaveRoom compact busy={leaving} error={leaveError} onConfirm={onLeave} /></header>
-    <PlayerBalances state={state} playerId={playerId} />
+    <PlayerBalances state={state} playerId={playerId} onSelect={setViewingPlayerId} />
     {error && status === 'online' ? <div className="toast" role="alert"><span>{error}</span><button onClick={clearError} aria-label="Dismiss message">×</button></div> : null}
+    {moneyFeed.banner ? <div className="toast money-toast" key={moneyFeed.banner.id}><span>{moneyFeed.banner.text}</span><button onClick={moneyFeed.dismiss} aria-label="Dismiss announcement">×</button></div> : null}
     {tab === 'game' ? <><Board compact={compact} state={state} selectedIndex={selected} onSelect={setSelected} displayPositions={movement.displayPositions} movingPlayerId={movement.movingPlayerId} tokenMotion={movement.tokenMotion} />{compact ? <BoardNavigator state={state} onSelect={setSelected} /> : null}{movementOverridesActions && movingPlayer ? <MovementTurnCard state={state} playerName={movingPlayer.name} rolling={rolling} /> : <TurnActions state={state} playerId={playerId} send={send} rolling={rolling} onOpenAssets={() => setTab('assets')} onLeave={onLeave} leaving={leaving} />}<TableLedger state={state} variant={landscapePhone ? 'strip' : 'panel'} /></> : null}
     {tab === 'assets' ? <Assets state={state} playerId={playerId} send={send} /> : null}
     {tab === 'trade' ? <Trade state={state} playerId={playerId} send={send} /> : null}
     {tab === 'activity' ? <section className="tab-panel"><h2>Activity</h2><ActivityTimeline entries={state.activities} /></section> : null}
     <nav className="bottom-nav" aria-label="Game sections">{sections.map((item) => { const label = item[0]!.toUpperCase() + item.slice(1); return <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}><SectionIcon section={item} /><span>{label}</span></button>; })}</nav>
     {selected !== null ? <PropertySheet state={state} index={selected} playerId={playerId} send={send} onClose={() => setSelected(null)} /> : null}
+    {viewingPlayerId !== null ? <PlayerAssetsSheet state={state} viewPlayerId={viewingPlayerId} onClose={() => setViewingPlayerId(null)} /> : null}
     {showCard ? <CardReveal state={state} draw={lastCard} onClose={closeCard} /> : null}
     {status !== 'online' ? <div className="reconnect-sheet"><div className="spinner" /><h2>Reconnecting to the table</h2><p>Your last confirmed board is safe. Controls will return after a fresh server snapshot.</p></div> : null}
   </main>;

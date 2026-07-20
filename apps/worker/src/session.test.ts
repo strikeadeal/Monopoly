@@ -74,6 +74,12 @@ describe('client command authority', () => {
     expect(authoritativePayload('PLACE_BID', { amount: 20, now: 1 }, 'p1', 5_000)).toEqual({ amount: 20, playerId: 'p1', now: 5_000 });
   });
 
+  it('validates the lobby auctions toggle and stamps only the sender identity', () => {
+    expect(validateClientPayload('SET_AUCTIONS', { enabled: false })).toEqual({ enabled: false });
+    expect(validateClientPayload('SET_AUCTIONS', { enabled: 'yes' })).toBeNull();
+    expect(authoritativePayload('SET_AUCTIONS', { enabled: true, now: 1 }, 'p1', 5_000)).toEqual({ enabled: true, playerId: 'p1' });
+  });
+
   it('passes valid test dice through only when explicitly allowed', () => {
     expect(authoritativePayload('ROLL', { dice: [6, 6], now: 1 }, 'p1', 5_000, true)).toEqual({ dice: [6, 6], playerId: 'p1' });
     expect(authoritativePayload('PLACE_BID', { dice: [6, 6], amount: 20 }, 'p1', 5_000, true)).toEqual({ amount: 20, playerId: 'p1', now: 5_000 });

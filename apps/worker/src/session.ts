@@ -24,7 +24,7 @@ const tradeOffer = z.object({
   offeredJailCards: z.array(z.string().min(1).max(100)).max(2), requestedJailCards: z.array(z.string().min(1).max(100)).max(2)
 });
 const payloadSchemas: Record<string, z.ZodType<Record<string, unknown>>> = {
-  SET_TOKEN: z.object({ token: z.enum(TOKENS) }), SET_READY: z.object({ ready: z.boolean() }), START_GAME: empty, ROLL: empty, BUY_PROPERTY: empty, DECLINE_PROPERTY: empty,
+  SET_TOKEN: z.object({ token: z.enum(TOKENS) }), SET_READY: z.object({ ready: z.boolean() }), SET_AUCTIONS: z.object({ enabled: z.boolean() }), START_GAME: empty, ROLL: empty, BUY_PROPERTY: empty, DECLINE_PROPERTY: empty,
   PLACE_BID: z.object({ amount: z.number().int().nonnegative() }), PASS_AUCTION: empty, END_TURN: empty,
   PAY_JAIL_FINE: empty, USE_JAIL_CARD: empty, BUILD: space, SELL_BUILDING: space, MORTGAGE: space, UNMORTGAGE: space,
   SETTLE_DEBT: empty, PROPOSE_TRADE: z.object({ offer: tradeOffer }), RESPOND_TRADE: z.object({ accept: z.boolean() }),
