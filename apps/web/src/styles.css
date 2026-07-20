@@ -71,6 +71,9 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .ready-dot { width: 11px; height: 11px; border: 2px solid #6c7b74; border-radius: 50%; }
 .ready-dot.ready { border-color: #2e7658; background: #2e7658; box-shadow: 0 0 0 4px rgba(46,118,88,.14); }
 .lobby-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 24px; }
+.lobby-options { display: grid; gap: 8px; margin-top: 24px; }
+.lobby-options h2 { margin: 0; font-size: 1.25rem; }
+.lobby-options .rule-note { margin: 0; }
 .lobby-token-picker { margin-top: 24px; }
 .lobby-token-picker .token-picker button:disabled { filter: grayscale(1); opacity: .28; }
 .leave-button { width: 100%; margin-top: 14px; border-color: rgba(154,48,43,.45); background: transparent; color: #8e302c; }
@@ -88,6 +91,9 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .player-balances { display:flex; gap:7px; margin:0 -2px 9px; padding:2px; overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; }
 .player-balances::-webkit-scrollbar { display:none; }
 .balance-chip { display:grid; grid-template-columns:24px minmax(52px,1fr); grid-template-rows:auto auto; flex:0 0 112px; align-items:center; column-gap:7px; padding:7px 9px; border:1px solid var(--line); border-radius:12px; background:rgba(248,241,223,.72); }
+button.balance-chip { min-height:0; font:inherit; font-weight:inherit; text-align:left; cursor:pointer; }
+.player-assets-sheet h2 .owner-swatch { display:inline-block; width:16px; height:16px; margin-right:8px; vertical-align:baseline; }
+.player-assets-sheet .asset-summary { margin-top:14px; }
 .balance-chip svg { grid-row:1/3; width:22px; height:22px; }
 .balance-token { background:var(--player-color); color:white; }
 .balance-chip span { overflow:hidden; color:#5b6a63; font-size:.65rem; text-overflow:ellipsis; white-space:nowrap; }
@@ -130,8 +136,10 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .action-row, .bid-controls, .deed-actions { display: flex; gap: 8px; }
 .action-row > *, .bid-controls button { flex: 1; }
 .bid-value { margin: 0; color: var(--ink)!important; font-family: 'DM Serif Display', serif; font-size: 2rem!important; font-weight: 400; line-height: 1; }
-.bid-line { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; color: #596961; }
-.bid-controls input { max-width: 100px; }
+.bid-line { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; color: #596961; }
+.bid-hint { margin: 0 0 10px; color: #596961; font-size: .78rem; font-variant-numeric: tabular-nums; }
+.bid-controls input { max-width: 120px; }
+.bid-controls input[aria-invalid="true"] { border-color: #9a302b; }
 .danger-button { border-color: #9a302b; color: #9a302b; }
 .bottom-nav { position: fixed; z-index: 10; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, 1fr); max-width: 540px; margin: auto; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: rgba(248,241,223,.96); backdrop-filter: blur(14px); }
 .bottom-nav button { display:grid; grid-template-rows:20px auto; place-items:center; gap:2px; min-width: 0; border: 0; background: transparent; color: #66736d; font-size: .68rem; }
@@ -172,7 +180,10 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .bank-stock,.empty-copy { margin-top: 18px; color: #64736b; font-size: .82rem; }
 .trade-money { display:grid; grid-template-columns:1fr 1fr; gap:10px; }.trade-properties { display:grid; gap:8px; margin-bottom:15px; }.trade-properties label { display:flex; grid-template-columns:none; align-items:center; gap:8px; margin:0; }.trade-properties input { width:20px; min-height:20px; }
 .activity-list { margin:0; padding:0; list-style:none; }.activity-list time { color:#758179; }.activity-list .money span { color:#2e7658; }.activity-list .warning span { color:#9a302b; }
-.toast { position:fixed; z-index:30; top:calc(10px + env(safe-area-inset-top)); left:50%; display:flex; align-items:center; gap:8px; width:min(calc(100% - 24px),500px); padding:10px 12px; transform:translateX(-50%); border-radius:12px; background:#8e302c; color:white; box-shadow:0 8px 26px rgba(0,0,0,.2); }.toast span{flex:1}.toast button{border:0;background:transparent;color:white;font-size:1.2rem;}
+.toast { position:fixed; z-index:30; top:calc(10px + env(safe-area-inset-top)); left:50%; display:flex; align-items:center; gap:8px; width:min(calc(100% - 24px),500px); padding:10px 12px; transform:translateX(-50%); border-radius:12px; background:#8e302c; color:white; box-shadow:0 8px 26px rgba(0,0,0,.2); }.toast span{flex:1}.toast button{border:0;background:transparent;color:white;font-size:1.2rem;min-height:0;}
+.toast.money-toast { background:var(--brass); color:#1d1607; }
+.toast.money-toast button { color:#1d1607; }
+.toast[role="alert"] ~ .money-toast { top:calc(64px + env(safe-area-inset-top)); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .reconnect-sheet { position:fixed; z-index:25; right:0; bottom:0; left:0; width:min(100%,540px); margin:auto; padding:24px 24px calc(24px + env(safe-area-inset-bottom)); border-radius:20px 20px 0 0; background:var(--paper); text-align:center; box-shadow:0 -12px 40px rgba(23,37,31,.2); }.reconnect-sheet .spinner{margin:auto}.reconnect-sheet h2{margin:12px 0 6px}.reconnect-sheet p{color:#617068;font-size:.85rem;}
 @media (min-width:700px){.game-shell{padding-top:24px}.board-space{font-size:.54rem}.landing-shell{padding-top:36px}}
@@ -319,13 +330,14 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 
 @media (min-width:900px) {
   .landing-shell { width:min(100%,680px); }
-  .lobby-shell { display:grid; grid-template-columns:minmax(0,1.12fr) minmax(320px,.88fr); grid-template-rows:auto auto auto auto auto; gap:18px 42px; width:min(calc(100% - 48px),1040px); padding:36px 0; }
+  .lobby-shell { display:grid; grid-template-columns:minmax(0,1.12fr) minmax(320px,.88fr); grid-template-rows:auto auto auto auto auto auto; gap:18px 42px; width:min(calc(100% - 48px),1040px); padding:36px 0; }
   .lobby-shell .table-header { grid-column:1/-1; }
-  .invite-panel { grid-column:1; grid-row:2/6; align-content:start; margin:38px 0 0; padding:28px; border:1px solid var(--line); background:rgba(248,241,223,.42); }
+  .invite-panel { grid-column:1; grid-row:2/7; align-content:start; margin:38px 0 0; padding:28px; border:1px solid var(--line); background:rgba(248,241,223,.42); }
   .players-list { grid-column:2; grid-row:2; align-self:start; padding:20px; border:1px solid var(--line); background:rgba(248,241,223,.4); }
-  .lobby-token-picker { grid-column:2; grid-row:3; margin:0; }
-  .lobby-actions { grid-column:2; grid-row:4; margin-top:0; }
-  .lobby-shell > .leave-button { grid-column:2; grid-row:5; margin-top:0; }
+  .lobby-options { grid-column:2; grid-row:3; margin-top:0; }
+  .lobby-token-picker { grid-column:2; grid-row:4; margin:0; }
+  .lobby-actions { grid-column:2; grid-row:5; margin-top:0; }
+  .lobby-shell > .leave-button { grid-column:2; grid-row:6; margin-top:0; }
   .game-shell { display:grid; grid-template-columns:minmax(0,620px) minmax(320px,420px); grid-template-rows:auto auto auto auto 1fr; gap:10px 24px; width:min(calc(100% - 48px),1080px); max-width:1080px; min-height:100dvh; padding:24px 0; }
   .status-rail,.player-balances { grid-column:1/-1; }
   .status-rail { margin-bottom:0; }
@@ -709,7 +721,7 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
   .lobby-shell {
     display:grid;
     grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);
-    grid-template-rows:auto auto auto auto auto;
+    grid-template-rows:auto auto auto auto auto auto;
     gap:2px 4vw;
     width:100%;
     max-width:none;
@@ -721,7 +733,7 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
   }
   .lobby-shell .table-header { grid-column:1/-1; }
   .table-header strong { font-size:1.45rem; letter-spacing:.1em; }
-  .invite-panel { grid-column:1; grid-row:2/6; align-content:start; margin:6px 0 0; gap:14px; }
+  .invite-panel { grid-column:1; grid-row:2/7; align-content:start; margin:6px 0 0; gap:14px; }
   .invite-panel h1 { margin-bottom:5px; font-size:1.55rem; }
   .invite-panel p { font-size:.85rem; }
   .invite-panel svg { width:98px; height:98px; }
@@ -729,9 +741,11 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
   .players-list { grid-column:2; grid-row:2; }
   .players-list h2 { margin-bottom:2px; font-size:1.25rem; }
   .player-row { padding:7px 0; }
-  .lobby-token-picker { grid-column:2; grid-row:3; margin-top:10px; }
-  .lobby-actions { grid-column:2; grid-row:4; margin-top:10px; }
-  .lobby-shell > .leave-button { grid-column:2; grid-row:5; margin-top:10px; }
+  .lobby-options { grid-column:2; grid-row:3; margin-top:10px; }
+  .lobby-options h2 { font-size:1.05rem; }
+  .lobby-token-picker { grid-column:2; grid-row:4; margin-top:10px; }
+  .lobby-actions { grid-column:2; grid-row:5; margin-top:10px; }
+  .lobby-shell > .leave-button { grid-column:2; grid-row:6; margin-top:10px; }
 
   /* Sheets become centred dialogs on the short viewport instead of towering bottom sheets. */
   .drawer-backdrop { align-items:center; padding:10px; }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BOARD, createGame, createLobby, reduceGame } from '@monopoly/game';
 import { ActivityTimeline } from './components/ActivityTimeline';
@@ -557,6 +557,122 @@ describe('mobile game UI', () => {
     expect(screen.getByText('$0 · Fremantle Line')).toBeInTheDocument();
     expect(screen.getByText('You give')).toBeInTheDocument();
     expect(screen.getByText('$1,075')).toBeInTheDocument();
+  });
+
+  it('opens a read-only assets sheet when a player balance chip is tapped', () => {
+    const state = makeState();
+    state.properties[6]!.ownerId = 'p2';
+    state.properties[8]!.ownerId = 'p2';
+    state.properties[8]!.mortgaged = true;
+    render(<GameScreen state={state} {...screenProps} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Sam, / }));
+    const dialog = screen.getByRole('dialog', { name: /Sam/ });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText('Gosnells')).toBeInTheDocument();
+    expect(within(dialog).getByText('Balga')).toBeInTheDocument();
+    expect(within(dialog).getByText('Mortgaged')).toBeInTheDocument();
+    expect(within(dialog).getByText('Net worth')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /Mortgage|Unmortgage/ })).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close player assets' }));
+    expect(screen.queryByRole('dialog', { name: /Sam/ })).toBeNull();
+  });
+
+  it('announces new money events with a banner that auto-dismisses', () => {
+    vi.useFakeTimers();
+    const state = makeState();
+    state.activities = [{ id: 'old-money', at: 1, text: 'Alex passed GO and collected $200.', tone: 'money' }, ...state.activities];
+    const { rerender, container } = render(<GameScreen state={state} {...screenProps} />);
+    expect(container.querySelector('.money-toast')).toBeNull();
+    const next = structuredClone(state);
+    next.activities = [{ id: 'new-money', at: 2, text: 'Alex paid $50 to Sam for rent on Subiaco.', tone: 'money' }, ...next.activities];
+    rerender(<GameScreen state={next} {...screenProps} />);
+    expect(container.querySelector('.money-toast')).toHaveTextContent('Alex paid $50 to Sam for rent on Subiaco.');
+    expect([...container.querySelectorAll('.sr-only[aria-live="polite"]')].some((region) => region.textContent === 'Alex paid $50 to Sam for rent on Subiaco.')).toBe(true);
+    act(() => { vi.advanceTimersByTime(4_000); });
+    expect(container.querySelector('.money-toast')).toBeNull();
+  });
+
+  it('shows queued money events one at a time', () => {
+    vi.useFakeTimers();
+    const state = makeState();
+    const { rerender, container } = render(<GameScreen state={state} {...screenProps} />);
+    const next = structuredClone(state);
+    next.activities = [
+      { id: 'm2', at: 3, text: 'Alex passed GO and collected $200.', tone: 'money' },
+      { id: 'm1', at: 2, text: 'Sam paid $28 to Alex for rent on Subiaco.', tone: 'money' },
+      ...next.activities
+    ];
+    rerender(<GameScreen state={next} {...screenProps} />);
+    expect(container.querySelector('.money-toast')).toHaveTextContent('Sam paid $28 to Alex for rent on Subiaco.');
+    act(() => { vi.advanceTimersByTime(4_000); });
+    expect(container.querySelector('.money-toast')).toHaveTextContent('Alex passed GO and collected $200.');
+    act(() => { vi.advanceTimersByTime(4_000); });
+    expect(container.querySelector('.money-toast')).toBeNull();
+  });
+
+  it('requires a typed auction bid within the minimum and available cash', () => {
+    const state = makeState();
+    state.players[0]!.cash = 300;
+    state.phase = { type: 'auction', spaceIndex: 1, bidderId: null, bid: 0, passedPlayerIds: [], deadline: Date.now() + 15_000, reason: 'property' };
+    const send = vi.fn();
+    render(<GameScreen state={state} {...screenProps} send={send} />);
+    expect(screen.getByText('Minimum $10 · You have $300')).toBeInTheDocument();
+    const input = screen.getByLabelText('Bid amount');
+    const bidButton = screen.getByRole('button', { name: 'Bid' });
+    expect(bidButton).toBeDisabled();
+    fireEvent.change(input, { target: { value: '5' } });
+    expect(screen.getByRole('button', { name: 'Bid' })).toBeDisabled();
+    fireEvent.change(input, { target: { value: '400' } });
+    expect(screen.getByRole('button', { name: 'Bid' })).toBeDisabled();
+    fireEvent.change(input, { target: { value: '50' } });
+    const readyButton = screen.getByRole('button', { name: 'Bid $50' });
+    expect(readyButton).toBeEnabled();
+    fireEvent.click(readyButton);
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'PLACE_BID', amount: 50 }));
+  });
+
+  it('tells a player who cannot cover the minimum bid to pass', () => {
+    const state = makeState();
+    state.players[0]!.cash = 4;
+    state.phase = { type: 'auction', spaceIndex: 1, bidderId: null, bid: 0, passedPlayerIds: [], deadline: Date.now() + 15_000, reason: 'property' };
+    render(<GameScreen state={state} {...screenProps} />);
+    expect(screen.getByText("You can't cover the $10 minimum — pass.")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pass' })).toBeEnabled();
+  });
+
+  it('offers a plain decline instead of an auction when auctions are off', () => {
+    const state = createGame([
+      { id: 'p1', name: 'Alex', token: 'rocket' },
+      { id: 'p2', name: 'Sam', token: 'key' }
+    ], { mode: 'official', auctions: false }, () => 0);
+    state.phase = { type: 'purchase', spaceIndex: 39, playerId: 'p1' };
+    render(<GameScreen state={state} {...screenProps} />);
+    expect(screen.getByText('Buy for $400 or decline and it stays with the Bank.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Decline' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Auction' })).toBeNull();
+  });
+
+  it('lets only the lobby host toggle auctions and shows the setting to everyone', () => {
+    const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 1_000, () => 0);
+    state.players.push({ ...state.players[0]!, id: 'p2', name: 'Sam', token: 'key' });
+    const send = vi.fn();
+    const { rerender } = render(<Lobby state={state} playerId="p1" send={send} onLeave={() => undefined} leaving={false} leaveError={null} />);
+    const toggle = screen.getByRole('button', { name: 'Auctions on' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(toggle);
+    expect(send).toHaveBeenCalledWith({ type: 'SET_AUCTIONS', enabled: false });
+    rerender(<Lobby state={state} playerId="p2" send={send} onLeave={() => undefined} leaving={false} leaveError={null} />);
+    expect(screen.queryByRole('button', { name: /Auctions/ })).toBeNull();
+    expect(screen.getByText('Official rules · Auctions on')).toBeInTheDocument();
+  });
+
+  it('creates a room with auctions turned off from the landing options', () => {
+    const onCreate = vi.fn();
+    render(<Landing onCreate={onCreate} onJoin={() => undefined} busy={false} error={null} />);
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Alex' } });
+    fireEvent.change(screen.getByLabelText('Auctions'), { target: { value: 'off' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create game' }));
+    expect(onCreate).toHaveBeenCalledWith({ nickname: 'Alex' }, { mode: 'official', auctions: false });
   });
 
   it('offers create and join as the only primary landing actions', () => {

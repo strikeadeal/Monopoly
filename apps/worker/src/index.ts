@@ -20,11 +20,11 @@ interface Env {
 interface AuthRecord { tokenHash: string; joinedAt: number; disconnectedAt?: number }
 interface StoredRoom { state: GameState; auth: Record<string, AuthRecord>; results: [string, CommandResult][]; lastActivity: number; joinAttempts?: number[] }
 
-const settingsSchema = z.object({ mode: z.enum(['official', 'quick']), durationMinutes: z.union([z.literal(45), z.literal(60), z.literal(90)]).optional() });
+const settingsSchema = z.object({ mode: z.enum(['official', 'quick']), durationMinutes: z.union([z.literal(45), z.literal(60), z.literal(90)]).optional(), auctions: z.boolean().optional() });
 const playerSchema = z.object({ nickname: z.string().trim().min(1).max(24) });
 const createSchema = playerSchema.extend({ settings: settingsSchema });
 const leaveSchema = z.object({ leaveRequestId: z.string().min(8).max(100) });
-const commandTypes = ['SET_TOKEN', 'SET_READY', 'START_GAME', 'ROLL', 'BUY_PROPERTY', 'DECLINE_PROPERTY', 'PLACE_BID', 'PASS_AUCTION', 'END_TURN', 'PAY_JAIL_FINE', 'USE_JAIL_CARD', 'BUILD', 'SELL_BUILDING', 'MORTGAGE', 'UNMORTGAGE', 'SETTLE_DEBT', 'PROPOSE_TRADE', 'RESPOND_TRADE', 'DECLARE_BANKRUPTCY', 'PAUSE', 'RESUME'] as const;
+const commandTypes = ['SET_TOKEN', 'SET_READY', 'SET_AUCTIONS', 'START_GAME', 'ROLL', 'BUY_PROPERTY', 'DECLINE_PROPERTY', 'PLACE_BID', 'PASS_AUCTION', 'END_TURN', 'PAY_JAIL_FINE', 'USE_JAIL_CARD', 'BUILD', 'SELL_BUILDING', 'MORTGAGE', 'UNMORTGAGE', 'SETTLE_DEBT', 'PROPOSE_TRADE', 'RESPOND_TRADE', 'DECLARE_BANKRUPTCY', 'PAUSE', 'RESUME'] as const;
 const commandSchema = z.object({ protocolVersion: z.number().int(), commandId: z.string().min(8).max(100), expectedRevision: z.number().int().nonnegative(), type: z.enum(commandTypes), payload: z.record(z.string(), z.unknown()) });
 const creationAttempts = new Map<string, number[]>();
 

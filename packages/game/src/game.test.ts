@@ -409,6 +409,60 @@ describe('authoritative game reducer', () => {
     expect(game.currentPlayerId).toBe('p2');
   });
 
+  it('normalizes missing auction settings to enabled and lets only the lobby host toggle them', () => {
+    let lobby = createLobby(players[0]!, { mode: 'official' }, 1_000, () => 0);
+    expect(lobby.settings.auctions).toBe(true);
+    lobby = reduceGame(lobby, { type: 'ADD_PLAYER', player: players[1]! }, () => 0);
+    expect(() => reduceGame(lobby, { type: 'SET_AUCTIONS', playerId: 'p2', enabled: false }, () => 0)).toThrow('only the host can change settings');
+    lobby = reduceGame(lobby, { type: 'SET_AUCTIONS', playerId: 'p1', enabled: false }, () => 0);
+    expect(lobby.settings.auctions).toBe(false);
+    expect(lobby.activities[0]!.text).toBe('Alex turned auctions off.');
+    lobby = reduceGame(lobby, { type: 'SET_TOKEN', playerId: 'p1', token: 'rocket' }, () => 0);
+    lobby = reduceGame(lobby, { type: 'SET_READY', playerId: 'p1', ready: true }, () => 0);
+    lobby = reduceGame(lobby, { type: 'SET_TOKEN', playerId: 'p2', token: 'key' }, () => 0);
+    lobby = reduceGame(lobby, { type: 'SET_READY', playerId: 'p2', ready: true }, () => 0);
+    lobby = reduceGame(lobby, { type: 'START_GAME', playerId: 'p1' }, () => 0);
+    expect(lobby.settings.auctions).toBe(false);
+    expect(() => reduceGame(lobby, { type: 'SET_AUCTIONS', playerId: 'p1', enabled: true }, () => 0)).toThrow('settings can only change in the lobby');
+  });
+
+  it('declines a property straight back to the Bank when auctions are off', () => {
+    let game = createGame(players, { mode: 'official', auctions: false }, () => 0);
+    game.phase = { type: 'purchase', spaceIndex: 1, playerId: 'p1' };
+    game = reduceGame(game, { type: 'DECLINE_PROPERTY', playerId: 'p1', now: 1_000 }, () => 0);
+    expect(game.phase).toEqual({ type: 'awaiting-end' });
+    expect(game.properties[1]).toEqual({ ownerId: null, mortgaged: false, buildings: 0 });
+    expect(game.activities[0]!.text).toBe('Alex declined Armadale. It stays with the Bank.');
+  });
+
+  it('returns bankruptcy deeds to the Bank without auctions when disabled', () => {
+    const threePlayers: PlayerSeed[] = [...players, { id: 'p3', name: 'Jo', token: 'coffee' }];
+    let game = createGame(threePlayers, { mode: 'official', auctions: false }, () => 0);
+    game.properties[1]!.ownerId = 'p1'; game.properties[3]!.ownerId = 'p1'; game.players[0]!.cash = 0;
+    game.phase = { type: 'debt', playerId: 'p1', creditorId: null, amount: 200, reason: 'tax' };
+    game = reduceGame(game, { type: 'DECLARE_BANKRUPTCY', playerId: 'p1' }, () => 0);
+    expect(game.phase).toEqual({ type: 'awaiting-roll' });
+    expect(game.currentPlayerId).toBe('p2');
+    expect(game.bankruptcyAuctionQueue).toEqual([]);
+    expect(game.properties[1]!.ownerId).toBeNull();
+    expect(game.properties[3]!.ownerId).toBeNull();
+    expect(game.activities[0]!.text).toBe('Auctions are off — returned deeds stay with the Bank.');
+  });
+
+  it('flushes a departed player’s deeds at the next turn boundary when auctions are off', () => {
+    const threePlayers: PlayerSeed[] = [...players, { id: 'p3', name: 'Jo', token: 'coffee' }];
+    let game = createGame(threePlayers, { mode: 'official', auctions: false }, () => 0);
+    game.properties[6]!.ownerId = 'p3';
+    game.phase = { type: 'awaiting-end' };
+    game = reduceGame(game, { type: 'LEAVE_ROOM', playerId: 'p3', now: 2_000 }, () => 0);
+    expect(game.bankruptcyAuctionQueue).toEqual([6]);
+    game = reduceGame(game, { type: 'END_TURN', playerId: 'p1' }, () => 0);
+    expect(game.phase).toEqual({ type: 'awaiting-roll' });
+    expect(game.currentPlayerId).toBe('p2');
+    expect(game.bankruptcyAuctionQueue).toEqual([]);
+    expect(game.properties[6]!.ownerId).toBeNull();
+  });
+
   it('continues the third failed Jail roll after its mandatory fine is raised', () => {
     let game = createGame(players, { mode: 'official' }, () => 0);
     Object.assign(game.players[0]!, { position: 10, inJail: true, jailTurns: 2, cash: 0 });

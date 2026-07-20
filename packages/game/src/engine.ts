@@ -46,13 +46,15 @@ const addStepMovement = (game: GameState, positions: number[]) => {
   if (positions.length && game.lastMovement) game.lastMovement.segments.push({ kind: 'steps', reason: 'card', positions });
 };
 
+export const auctionsEnabled = (settings: GameSettings) => settings.auctions !== false;
+
 export function createGame(players: PlayerSeed[], settings: GameSettings, random: RandomSource = Math.random, startedAt = now()): GameState {
   if (players.length < 2 || players.length > 6) throw new Error('games require 2–6 players');
   const statePlayers: PlayerState[] = players.map((player, index) => ({
     ...player, cash: 1500, position: 0, inJail: false, jailTurns: 0, doublesStreak: 0, bankrupt: false, jailFreeCards: [], ready: true, tokenConfirmed: true, connected: true, joinedAt: startedAt + index
   }));
   return {
-    revision: 0, status: 'playing', hostPlayerId: players[0]!.id, players: statePlayers, settings,
+    revision: 0, status: 'playing', hostPlayerId: players[0]!.id, players: statePlayers, settings: { ...settings, auctions: auctionsEnabled(settings) },
     phase: { type: 'awaiting-roll' }, currentPlayerId: players[0]!.id, turnOrder: players.map((player) => player.id), turnIndex: 0, round: 1,
     timerEndsAt: settings.mode === 'quick' ? startedAt + (settings.durationMinutes ?? 60) * 60_000 : null, timerExpired: false,
     lastRoll: null, rolledDoubles: false, lastCard: null, lastMovement: null,
@@ -274,6 +276,12 @@ function closeAuction(game: GameState) {
   else game.phase = { type: 'awaiting-end' };
 }
 function startBankruptcyAuction(game: GameState) {
+  if (!auctionsEnabled(game.settings)) {
+    if (game.bankruptcyAuctionQueue.length) addActivity(game, 'Auctions are off — returned deeds stay with the Bank.');
+    game.bankruptcyAuctionQueue = [];
+    nextTurn(game);
+    return;
+  }
   const spaceIndex = game.bankruptcyAuctionQueue.shift();
   if (spaceIndex === undefined) { nextTurn(game); return; }
   game.phase = { type: 'auction', spaceIndex, bidderId: null, bid: 0, passedPlayerIds: [], deadline: now() + 15_000, reason: 'bankruptcy' };
@@ -413,6 +421,15 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
       player.ready = command.ready;
       break;
     }
+    case 'SET_AUCTIONS': {
+      if (game.status !== 'lobby') throw new Error('settings can only change in the lobby');
+      if (game.hostPlayerId !== command.playerId) throw new Error('only the host can change settings');
+      if (auctionsEnabled(game.settings) !== command.enabled) {
+        game.settings.auctions = command.enabled;
+        addActivity(game, `${playerById(game, command.playerId).name} turned auctions ${command.enabled ? 'on' : 'off'}.`);
+      }
+      break;
+    }
     case 'START_GAME': {
       if (game.hostPlayerId !== command.playerId) throw new Error('only the host can start');
       if (game.players.length < 2 || !game.players.every((player) => player.tokenConfirmed && player.ready)) throw new Error('2–6 ready players are required');
@@ -467,6 +484,12 @@ export function reduceGame(input: GameState, command: GameCommand, random: Rando
     case 'DECLINE_PROPERTY': {
       ensureTurn(game, command.playerId);
       if (game.phase.type !== 'purchase') throw new Error('no property is offered');
+      if (!auctionsEnabled(game.settings)) {
+        const space = propertySpace(game.phase.spaceIndex);
+        addActivity(game, `${playerById(game, command.playerId).name} declined ${space.name}. It stays with the Bank.`);
+        game.phase = { type: 'awaiting-end' };
+        break;
+      }
       game.phase = { type: 'auction', spaceIndex: game.phase.spaceIndex, bidderId: null, bid: 0, passedPlayerIds: [], deadline: (command.now ?? now()) + 15_000, reason: 'property' };
       break;
     }

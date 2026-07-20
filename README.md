@@ -36,13 +36,13 @@ npm run test:e2e
 
 - $1,500 starting cash, $200 for passing GO, $200 Income Tax, and $100 Luxury Tax.
 - Automatic rent, color-group double rent, railroad scaling, utilities, doubles, three-doubles Jail, Jail cards/fines, and third-turn mandatory payment.
-- Mandatory auctions, 15-second opening window, 10-second bid resets, $10 opening bid, $1 raises, early close after all non-leaders pass, and deed auctions after bankruptcy to the Bank.
+- Auctions (on by default; the host can turn them off at creation or in the lobby) with a 15-second opening window, 10-second bid resets, $10 opening bid, typed bids of at least $1 over the leader, early close after all non-leaders pass, and deed auctions after bankruptcy to the Bank. With auctions off, declined and returned deeds stay with the Bank.
 - 32-house and 12-hotel bank inventory, even building and selling, half-price building sales, complete-group and mortgage restrictions.
 - Mortgages, 10% unmortgage/transfer interest, cash/deed/Jail-card trades, debt resolution, creditor bankruptcy transfers, bank bankruptcy, and last-solvent-player victory.
 - Optional 45/60/90-minute quick games that finish the current round and rank full official net worth, then cash, unmortgaged property, and a server roll-off.
 - Host pause/resume with a frozen quick-game clock and automatic host transfer after 60 seconds offline.
 
-There is no Free Parking jackpot or other house rule. Card text is paraphrased while preserving the official effect and value.
+The optional auctions-off toggle is the only house rule; there is no Free Parking jackpot. Card text is paraphrased while preserving the official effect and value.
 
 ## Deployment
 
