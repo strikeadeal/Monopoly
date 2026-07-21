@@ -680,6 +680,25 @@ describe('mobile game UI', () => {
     expect(screen.getByRole('button', { name: 'Create game' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Join' })).toBeInTheDocument();
     expect(screen.getByText('The board in every pocket.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Rejoin your table')).toBeNull();
+  });
+
+  it('offers to rejoin the newest stored tables from the landing screen', () => {
+    const onResume = vi.fn();
+    const stored = [{ roomCode: 'AAA111' }, { roomCode: 'BBB222' }, { roomCode: 'CCC333' }, { roomCode: 'DDD444' }];
+    render(<Landing onCreate={() => undefined} onJoin={() => undefined} busy={false} error={null} resumeSessions={stored} onResume={onResume} />);
+    const card = screen.getByLabelText('Rejoin your table');
+    expect(within(card).getAllByRole('button')).toHaveLength(3);
+    fireEvent.click(within(card).getByRole('button', { name: 'Return to room AAA111' }));
+    expect(onResume).toHaveBeenCalledWith('AAA111');
+  });
+
+  it('lets a disconnected player back out of the reconnect overlay without leaving', () => {
+    const onExit = vi.fn();
+    render(<GameScreen state={makeState()} {...screenProps} status="reconnecting" onExit={onExit} />);
+    expect(screen.getByText('Reconnecting to the table')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to home' }));
+    expect(onExit).toHaveBeenCalledOnce();
   });
 
   it('collects a name without asking for a character before joining', () => {

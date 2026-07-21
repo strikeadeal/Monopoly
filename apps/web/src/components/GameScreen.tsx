@@ -168,7 +168,7 @@ function Trade({ state, playerId, send }: { state: GameState; playerId: string; 
   return <section className="tab-panel trade-panel"><div className="panel-heading"><h2>Make a trade</h2><label>Trade with<select value={to} onChange={(event) => { setTo(event.target.value); setGive([]); setTake([]); }}>{others.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}</select></label></div><div className="trade-sides"><section className="trade-side"><h3>You give</h3><label>Cash<input type="number" min="0" max={me.cash} value={giveCash} onChange={(event) => setGiveCash(Number(event.target.value))} /></label>{deedSelector(mine, give, setGive)}</section><section className="trade-side receive"><h3>You receive</h3><label>Cash<input type="number" min="0" value={takeCash} onChange={(event) => setTakeCash(Number(event.target.value))} /></label>{deedSelector(theirs, take, setTake)}</section></div><p className="trade-summary">You give {money.format(giveCash)} and {give.length} deeds. You receive {money.format(takeCash)} and {take.length} deeds.</p>{!validCash ? <p className="form-error">The offer exceeds an available cash balance.</p> : null}<button className="primary-button trade-submit" disabled={!to || Boolean(pending) || !validCash} onClick={submit}>{pending ? 'Offer pending' : 'Send offer'}</button></section>;
 }
 
-export function GameScreen({ state, playerId, status, error, send, clearError, onLeave, leaving, leaveError }: { state: GameState; playerId: string; status: string; error: string | null; send: Sender; clearError: () => void; onLeave: () => void | Promise<void>; leaving: boolean; leaveError: string | null }) {
+export function GameScreen({ state, playerId, status, error, send, clearError, onLeave, leaving, leaveError, onExit }: { state: GameState; playerId: string; status: string; error: string | null; send: Sender; clearError: () => void; onLeave: () => void | Promise<void>; leaving: boolean; leaveError: string | null; onExit?: () => void }) {
   const [selected, setSelected] = useState<number | null>(null); const [tab, setTab] = useState<GameSection>('game');
   const [dismissedDrawId, setDismissedDrawId] = useState<string | null>(null);
   const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
@@ -211,6 +211,6 @@ export function GameScreen({ state, playerId, status, error, send, clearError, o
     {selected !== null ? <PropertySheet state={state} index={selected} playerId={playerId} send={send} onClose={() => setSelected(null)} /> : null}
     {viewingPlayerId !== null ? <PlayerAssetsSheet state={state} viewPlayerId={viewingPlayerId} onClose={() => setViewingPlayerId(null)} /> : null}
     {showCard ? <CardReveal state={state} draw={lastCard} onClose={closeCard} /> : null}
-    {status !== 'online' ? <div className="reconnect-sheet"><div className="spinner" /><h2>Reconnecting to the table</h2><p>Your last confirmed board is safe. Controls will return after a fresh server snapshot.</p></div> : null}
+    {status !== 'online' ? <div className="reconnect-sheet"><div className="spinner" /><h2>Reconnecting to the table</h2><p>Your last confirmed board is safe. Controls will return after a fresh server snapshot.</p>{onExit ? <button type="button" className="text-button" onClick={onExit}>Back to home</button> : null}</div> : null}
   </main>;
 }

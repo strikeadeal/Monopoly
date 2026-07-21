@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROTOCOL_VERSION, type GameCommand, type GameState, type ServerMessage } from '@monopoly/game';
-import { createTicket, socketUrl, type SessionIdentity } from './api';
+import { ApiError, createTicket, socketUrl, type SessionIdentity } from './api';
 import { friendlyError } from './errorCopy';
 
-export type ConnectionStatus = 'connecting' | 'online' | 'reconnecting' | 'offline';
+export type ConnectionStatus = 'connecting' | 'online' | 'reconnecting' | 'offline' | 'rejected';
 
 export function useGameConnection(session: SessionIdentity | null) {
   const [state, setState] = useState<GameState | null>(null);
@@ -19,6 +19,7 @@ export function useGameConnection(session: SessionIdentity | null) {
     stateRef.current = null;
     syncedSocketRef.current = null;
     setState(null);
+    retries.current = 0;
     if (!session) { setStatus('offline'); return; }
     let stopped = false;
     let retryTimer = 0;
@@ -70,6 +71,8 @@ export function useGameConnection(session: SessionIdentity | null) {
           try { message = JSON.parse(String(event.data)) as ServerMessage; }
           catch { setError('The table sent an unreadable update. Reconnecting safely.'); socket.close(); return; }
           if (message.type === 'snapshot') {
+            // Broadcasts can race a reconnect; never step back to an older revision.
+            if (stateRef.current && message.state.revision < stateRef.current.revision) return;
             stateRef.current = message.state;
             setState(message.state);
             syncedSocketRef.current = socket;
@@ -80,8 +83,13 @@ export function useGameConnection(session: SessionIdentity | null) {
             window.clearTimeout(pongDeadline);
             pongDeadline = 0;
           } else if (message.type === 'commandRejected') {
-            setError(friendlyError(message.message));
-            if (message.state) { stateRef.current = message.state; setState(message.state); }
+            setError(message.code === 'STALE_REVISION'
+              ? 'The table moved on — showing the latest board. Try again.'
+              : friendlyError(message.message));
+            if (message.state && (!stateRef.current || message.state.revision >= stateRef.current.revision)) {
+              stateRef.current = message.state;
+              setState(message.state);
+            }
           } else if (message.type === 'protocolMismatch') setError('The game was updated. Refresh this page to continue safely.');
         };
         socket.onclose = () => {
@@ -97,16 +105,43 @@ export function useGameConnection(session: SessionIdentity | null) {
       } catch (cause) {
         connecting = false;
         if (stopped) return;
+        if (cause instanceof ApiError && (cause.status === 401 || cause.status === 404)) {
+          // The seat or room is gone for good — retrying can never succeed.
+          setError(friendlyError(cause.message));
+          setStatus('rejected');
+          return;
+        }
         setError(friendlyError(cause instanceof Error ? cause.message : 'Connection failed.')); setStatus('reconnecting'); retries.current += 1;
         scheduleReconnect();
       }
     };
-    const reconnectNow = () => {
+    const forceReconnect = () => {
+      if (stopped) return;
+      clearHeartbeat();
+      syncedSocketRef.current = null;
+      const socket = socketRef.current;
+      socketRef.current = null;
+      setStatus('reconnecting');
+      try { socket?.close(); } catch { /* half-open sockets can throw on close */ }
+      void connect();
+    };
+    const verifyOrReconnect = () => {
+      if (stopped) return;
       clearRetry();
       const socket = socketRef.current;
-      if (!socket || socket.readyState === WebSocket.CLOSED) void connect();
+      if (socket?.readyState === WebSocket.OPEN) {
+        // The socket may be half-open after the OS suspended the app: probe it
+        // and rebuild unless the server answers quickly.
+        socket.send('ping');
+        window.clearTimeout(pongDeadline);
+        pongDeadline = window.setTimeout(forceReconnect, 4_000);
+      } else if (socket?.readyState === WebSocket.CONNECTING) {
+        forceReconnect();
+      } else {
+        void connect();
+      }
     };
-    const onVisibility = () => { if (document.visibilityState === 'visible') reconnectNow(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') verifyOrReconnect(); };
     const onOffline = () => {
       clearRetry();
       syncedSocketRef.current = null;
@@ -116,7 +151,7 @@ export function useGameConnection(session: SessionIdentity | null) {
       socket?.close();
       scheduleReconnect();
     };
-    const onOnline = () => reconnectNow();
+    const onOnline = () => verifyOrReconnect();
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('offline', onOffline);
     window.addEventListener('online', onOnline);
