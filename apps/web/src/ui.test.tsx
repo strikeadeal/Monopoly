@@ -652,6 +652,15 @@ describe('mobile game UI', () => {
     expect(screen.queryByRole('button', { name: 'Auction' })).toBeNull();
   });
 
+  it('surfaces connection errors inside the lobby instead of dropping them silently', () => {
+    const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 1_000, () => 0);
+    const clearError = vi.fn();
+    render(<Lobby state={state} playerId="p1" send={() => undefined} onLeave={() => undefined} leaving={false} leaveError={null} error="Wait for the game to reconnect." clearError={clearError} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Wait for the game to reconnect.');
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss message' }));
+    expect(clearError).toHaveBeenCalledOnce();
+  });
+
   it('lets only the lobby host toggle auctions and shows the setting to everyone', () => {
     const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 1_000, () => 0);
     state.players.push({ ...state.players[0]!, id: 'p2', name: 'Sam', token: 'key' });

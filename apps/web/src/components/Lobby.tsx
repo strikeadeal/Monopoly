@@ -6,7 +6,7 @@ import { TokenIcon, tokenNames } from './TokenIcon';
 
 const tokenIds = Object.keys(tokenNames) as TokenId[];
 
-export function Lobby({ state, playerId, send, onLeave, leaving, leaveError }: { state: GameState; playerId: string; send: (command: Record<string, unknown> & { type: string }) => void; onLeave: () => void | Promise<void>; leaving: boolean; leaveError: string | null }) {
+export function Lobby({ state, playerId, send, onLeave, leaving, leaveError, error, clearError }: { state: GameState; playerId: string; send: (command: Record<string, unknown> & { type: string }) => void; onLeave: () => void | Promise<void>; leaving: boolean; leaveError: string | null; error?: string | null; clearError?: () => void }) {
   const me = state.players.find((player) => player.id === playerId)!;
   const isHost = playerId === state.hostPlayerId;
   const auctionsOn = auctionsEnabled(state.settings);
@@ -34,6 +34,7 @@ export function Lobby({ state, playerId, send, onLeave, leaving, leaveError }: {
     }
   };
   return <main className="lobby-shell">
+    {error ? <div className="toast" role="alert"><span>{error}</span><button onClick={clearError} aria-label="Dismiss message">×</button></div> : null}
     <header className="table-header"><div><span className="eyeline">ROOM</span><strong>{roomCode}</strong></div><div className="rule-note">{state.settings.mode === 'quick' ? `${state.settings.durationMinutes} min quick game` : 'Official rules'} · Auctions {auctionsOn ? 'on' : 'off'}</div></header>
     <section className="invite-panel"><div><h1>Bring everyone in.</h1><p>Scan the code or share room <strong>{roomCode}</strong>.</p><div className="invite-actions"><button type="button" onClick={() => void copyInvite()}>{copyLabel}</button><button type="button" className="primary-button" onClick={() => void shareInvite()}>Share invite</button></div></div><QRCodeSVG value={joinUrl} size={126} bgColor="#f8f1df" fgColor="#15241e" /></section>
     <section className="players-list"><h2>Players <span>{state.players.length}/6</span></h2>{state.players.map((player) => <div className="player-row" key={player.id}><span className="player-token"><TokenIcon token={player.token} /></span><span><strong>{player.name}</strong><small>{player.id === state.hostPlayerId ? 'Host' : player.ready ? 'Ready' : 'Getting settled'}</small></span><span className={`ready-dot ${player.ready ? 'ready' : ''}`} /></div>)}</section>

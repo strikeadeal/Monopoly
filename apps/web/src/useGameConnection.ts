@@ -26,6 +26,8 @@ export function useGameConnection(session: SessionIdentity | null) {
     let heartbeat = 0;
     let pongDeadline = 0;
     let connecting = false;
+    let lastMessageAt = 0;
+    let handshakeStartedAt = 0;
 
     const clearRetry = () => { window.clearTimeout(retryTimer); retryTimer = 0; };
     const clearHeartbeat = () => {
@@ -51,6 +53,7 @@ export function useGameConnection(session: SessionIdentity | null) {
         setStatus(retries.current || stateRef.current ? 'reconnecting' : 'connecting');
         const { ticket } = await createTicket(session);
         if (stopped) { connecting = false; return; }
+        handshakeStartedAt = Date.now();
         const socket = new WebSocket(socketUrl(session, ticket));
         socketRef.current = socket;
         syncedSocketRef.current = null;
@@ -67,6 +70,7 @@ export function useGameConnection(session: SessionIdentity | null) {
         };
         socket.onmessage = (event) => {
           if (stopped || socket !== socketRef.current) return;
+          lastMessageAt = Date.now();
           let message: ServerMessage;
           try { message = JSON.parse(String(event.data)) as ServerMessage; }
           catch { setError('The table sent an unreadable update. Reconnecting safely.'); socket.close(); return; }
@@ -130,12 +134,18 @@ export function useGameConnection(session: SessionIdentity | null) {
       clearRetry();
       const socket = socketRef.current;
       if (socket?.readyState === WebSocket.OPEN) {
+        // A socket that just delivered a message is provably alive — probing it
+        // risks tearing down a healthy connection on a slow network.
+        if (Date.now() - lastMessageAt < 5_000) return;
         // The socket may be half-open after the OS suspended the app: probe it
         // and rebuild unless the server answers quickly.
         socket.send('ping');
         window.clearTimeout(pongDeadline);
         pongDeadline = window.setTimeout(forceReconnect, 4_000);
       } else if (socket?.readyState === WebSocket.CONNECTING) {
+        // Only abandon a handshake that has clearly stalled (its 30s ticket may
+        // be spent); young handshakes are allowed to finish.
+        if (Date.now() - handshakeStartedAt < 10_000) return;
         forceReconnect();
       } else {
         void connect();

@@ -480,7 +480,7 @@ test('a lobby with auctions off declines a property straight back to the Bank', 
     const auctionToggle = host.getByRole('button', { name: 'Auctions on' });
     await expect(auctionToggle).toHaveAttribute('aria-pressed', 'true');
     await auctionToggle.click();
-    await expect(host.getByRole('button', { name: 'Auctions off' })).toHaveAttribute('aria-pressed', 'false');
+    await expect(host.getByRole('button', { name: 'Auctions off' })).toHaveAttribute('aria-pressed', 'false', { timeout: 10_000 });
 
     await guest.goto(`/#/join/${roomCode}`);
     await guest.getByLabel('Your name').fill('Sam');

@@ -201,6 +201,7 @@ describe('useGameConnection', () => {
     first.emitCloseEvent = false;
     first.changeReadyStateOnClose = false;
 
+    await act(async () => vi.advanceTimersByTimeAsync(6_000));
     act(() => document.dispatchEvent(new Event('visibilitychange')));
     expect(first.sent).toEqual(['ping']);
     expect(result.current.status).toBe('online');
@@ -218,11 +219,27 @@ describe('useGameConnection', () => {
     const socket = await flushConnection();
     act(() => { socket.open(); socket.message(snapshot()); });
 
+    await act(async () => vi.advanceTimersByTimeAsync(6_000));
     act(() => document.dispatchEvent(new Event('visibilitychange')));
     expect(socket.sent).toEqual(['ping']);
     act(() => socket.message({ type: 'pong', at: Date.now() }));
     await act(async () => vi.advanceTimersByTimeAsync(4_000));
 
+    expect(result.current.status).toBe('online');
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('never probes a socket that just delivered a message', async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useGameConnection(session));
+    const socket = await flushConnection();
+    act(() => { socket.open(); socket.message(snapshot()); });
+
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    act(() => window.dispatchEvent(new Event('online')));
+    expect(socket.sent).toEqual([]);
+
+    await act(async () => vi.advanceTimersByTimeAsync(10_000));
     expect(result.current.status).toBe('online');
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
