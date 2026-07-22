@@ -248,8 +248,10 @@ export class GameRoom extends DurableObject<Env> {
   async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer) {
     if (typeof message !== 'string') return;
     const attachment = socket.deserializeAttachment() as { playerId: string };
-    if (message === 'ping') { socket.send(JSON.stringify({ type: 'pong', at: Date.now() } satisfies ServerMessage)); return; }
-    const room = await this.load(); if (!room) return;
+    const room = await this.load();
+    if (message === 'ping') { socket.send(JSON.stringify({ type: 'pong', at: Date.now(), ...(room ? { revision: room.state.revision } : {}) } satisfies ServerMessage)); return; }
+    if (message === 'resync') { if (room) socket.send(JSON.stringify({ type: 'snapshot', protocolVersion: PROTOCOL_VERSION, state: room.state } satisfies ServerMessage)); return; }
+    if (!room) return;
     let value: unknown;
     try { value = JSON.parse(message); } catch { value = null; }
     const parsed = commandSchema.safeParse(value);

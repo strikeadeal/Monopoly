@@ -288,6 +288,58 @@ describe('useGameConnection', () => {
     expect(result.current.error).toBe('The table moved on — showing the latest board. Try again.');
   });
 
+  it('requests a resync and heals when an acknowledged revision outruns the rendered snapshot', async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useGameConnection(session));
+    const socket = await flushConnection();
+    act(() => { socket.open(); socket.message(snapshot()); });
+    expect(result.current.state?.revision).toBe(0);
+
+    // The command is acknowledged but its snapshot frame is lost.
+    act(() => socket.message({ type: 'commandAccepted', commandId: 'c1', revision: 1 }));
+    expect(socket.sent).not.toContain('resync');
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(socket.sent).toContain('resync');
+    expect(result.current.state?.revision).toBe(0);
+
+    // The server answers the resync with the missing snapshot and the gap closes.
+    act(() => socket.message({ ...snapshot(), state: { ...state, revision: 1 } }));
+    expect(result.current.state?.revision).toBe(1);
+    socket.sent.length = 0;
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(socket.sent).not.toContain('resync');
+  });
+
+  it('requests a resync when a heartbeat pong reveals a newer server revision', async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useGameConnection(session));
+    const socket = await flushConnection();
+    act(() => { socket.open(); socket.message(snapshot()); });
+
+    // Both the accept and its snapshot were lost; the next pong exposes the gap.
+    act(() => socket.message({ type: 'pong', at: Date.now(), revision: 3 }));
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(socket.sent).toContain('resync');
+    expect(result.current.state?.revision).toBe(0);
+  });
+
+  it('never requests a resync when the snapshot follows its acknowledgement', async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useGameConnection(session));
+    const socket = await flushConnection();
+    act(() => { socket.open(); socket.message(snapshot()); });
+
+    act(() => {
+      socket.message({ type: 'commandAccepted', commandId: 'c1', revision: 1 });
+      socket.message({ ...snapshot(), state: { ...state, revision: 1 } });
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+
+    expect(socket.sent).not.toContain('resync');
+    expect(result.current.state?.revision).toBe(1);
+  });
+
   it('stops retrying and reports a rejected seat when the ticket is refused', async () => {
     vi.useFakeTimers();
     vi.mocked(createTicket).mockClear();

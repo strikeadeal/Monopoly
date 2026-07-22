@@ -132,4 +132,4 @@ export type ServerMessage =
   | { type: 'commandRejected'; commandId: string; code: string; message: string; state?: GameState }
   | { type: 'presence'; playerId: string; connected: boolean }
   | { type: 'protocolMismatch'; expected: number }
-  | { type: 'pong'; at: number };
+  | { type: 'pong'; at: number; revision?: number };
