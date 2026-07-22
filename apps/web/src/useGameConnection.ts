@@ -33,16 +33,32 @@ export function useGameConnection(session: SessionIdentity | null) {
     let retryTimer = 0;
     let heartbeat = 0;
     let pongDeadline = 0;
+    let resyncTimer = 0;
     let connecting = false;
     let lastMessageAt = 0;
     let handshakeStartedAt = 0;
 
     const clearRetry = () => { window.clearTimeout(retryTimer); retryTimer = 0; };
+    const clearResync = () => { window.clearTimeout(resyncTimer); resyncTimer = 0; };
     const clearHeartbeat = () => {
       window.clearInterval(heartbeat);
       window.clearTimeout(pongDeadline);
       heartbeat = 0;
       pongDeadline = 0;
+    };
+    // We advance observedRevision from both commandAccepted and pong, but the
+    // rendered state only from snapshots. If we have acknowledged a newer
+    // revision than we are showing, a snapshot frame was lost — ask the server
+    // to resend it. Debounced so the normal accepted→snapshot pair (snapshot
+    // arrives within milliseconds) never fires a spurious resync.
+    const scheduleResyncCheck = () => {
+      if (stopped || resyncTimer) return;
+      resyncTimer = window.setTimeout(() => {
+        resyncTimer = 0;
+        const socket = socketRef.current;
+        if (stopped || socket?.readyState !== WebSocket.OPEN || syncedSocketRef.current !== socket) return;
+        if (observedRevisionRef.current > (stateRef.current?.revision ?? -1)) socket.send('resync');
+      }, 1_000);
     };
     const scheduleReconnect = () => {
       if (stopped || retryTimer) return;
@@ -100,9 +116,14 @@ export function useGameConnection(session: SessionIdentity | null) {
           } else if (message.type === 'pong') {
             window.clearTimeout(pongDeadline);
             pongDeadline = 0;
+            if (typeof message.revision === 'number') {
+              observedRevisionRef.current = Math.max(observedRevisionRef.current, message.revision);
+              scheduleResyncCheck();
+            }
           } else if (message.type === 'commandAccepted') {
             observedRevisionRef.current = Math.max(observedRevisionRef.current, message.revision);
             pendingCommandsRef.current.delete(message.commandId);
+            scheduleResyncCheck();
           } else if (message.type === 'commandRejected') {
             pendingCommandsRef.current.delete(message.commandId);
             setError(message.code === 'STALE_REVISION'
@@ -118,6 +139,7 @@ export function useGameConnection(session: SessionIdentity | null) {
         socket.onclose = () => {
           if (socketRef.current !== socket) return;
           clearHeartbeat();
+          clearResync();
           socketRef.current = null;
           if (syncedSocketRef.current === socket) syncedSocketRef.current = null;
           if (stopped) return;
@@ -141,6 +163,7 @@ export function useGameConnection(session: SessionIdentity | null) {
     const forceReconnect = () => {
       if (stopped) return;
       clearHeartbeat();
+      clearResync();
       syncedSocketRef.current = null;
       const socket = socketRef.current;
       socketRef.current = null;
@@ -173,6 +196,7 @@ export function useGameConnection(session: SessionIdentity | null) {
     const onVisibility = () => { if (document.visibilityState === 'visible') verifyOrReconnect(); };
     const onOffline = () => {
       clearRetry();
+      clearResync();
       syncedSocketRef.current = null;
       setStatus('reconnecting');
       const socket = socketRef.current;
@@ -189,6 +213,7 @@ export function useGameConnection(session: SessionIdentity | null) {
       stopped = true;
       clearRetry();
       clearHeartbeat();
+      clearResync();
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('offline', onOffline);
       window.removeEventListener('online', onOnline);
