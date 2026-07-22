@@ -97,6 +97,22 @@ describe('useGameConnection', () => {
     expect(result.current.state).toEqual(state);
   });
 
+  it('stamps rapid commands with consecutive revisions so a client never conflicts with itself', async () => {
+    const { result } = renderHook(() => useGameConnection(session));
+    const socket = await flushConnection();
+    act(() => { socket.open(); socket.message(snapshot()); });
+
+    act(() => { result.current.send({ type: 'ROLL' }); result.current.send({ type: 'END_TURN' }); });
+    const sent = socket.sent.filter((raw) => raw !== 'ping').map((raw) => JSON.parse(raw) as { commandId: string; expectedRevision: number });
+    expect(sent.map((command) => command.expectedRevision)).toEqual([state.revision, state.revision + 1]);
+
+    // Once both are acknowledged, a later command uses the advanced revision.
+    act(() => sent.forEach((command, index) => socket.message({ type: 'commandAccepted', commandId: command.commandId, revision: state.revision + index + 1 })));
+    act(() => result.current.send({ type: 'END_TURN' }));
+    const latest = JSON.parse(socket.sent.at(-1)!) as { expectedRevision: number };
+    expect(latest.expectedRevision).toBe(state.revision + 2);
+  });
+
   it('blocks commands between reconnecting and receiving the replacement snapshot', async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useGameConnection(session));
