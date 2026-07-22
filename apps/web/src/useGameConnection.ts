@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PROTOCOL_VERSION, type GameCommand, type GameState, type ServerMessage } from '@monopoly/game';
-import { createTicket, socketUrl, type SessionIdentity } from './api';
+import { ApiError, createTicket, socketUrl, type SessionIdentity } from './api';
 import { friendlyError } from './errorCopy';
 
-export type ConnectionStatus = 'connecting' | 'online' | 'reconnecting' | 'offline';
+export type ConnectionStatus = 'connecting' | 'online' | 'reconnecting' | 'offline' | 'rejected';
 
 export function useGameConnection(session: SessionIdentity | null) {
   const [state, setState] = useState<GameState | null>(null);
@@ -13,18 +13,29 @@ export function useGameConnection(session: SessionIdentity | null) {
   const socketRef = useRef<WebSocket | null>(null);
   const syncedSocketRef = useRef<WebSocket | null>(null);
   const retries = useRef(0);
+  // The server advances one revision per accepted command. Tracking the highest
+  // revision we have observed plus our own still-unacknowledged commands lets a
+  // burst of rapid commands each carry the revision the server will actually be
+  // at, instead of all reusing the last snapshot's revision and self-conflicting.
+  const observedRevisionRef = useRef(0);
+  const pendingCommandsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => {
     stateRef.current = null;
     syncedSocketRef.current = null;
     setState(null);
+    retries.current = 0;
+    observedRevisionRef.current = 0;
+    pendingCommandsRef.current.clear();
     if (!session) { setStatus('offline'); return; }
     let stopped = false;
     let retryTimer = 0;
     let heartbeat = 0;
     let pongDeadline = 0;
     let connecting = false;
+    let lastMessageAt = 0;
+    let handshakeStartedAt = 0;
 
     const clearRetry = () => { window.clearTimeout(retryTimer); retryTimer = 0; };
     const clearHeartbeat = () => {
@@ -50,6 +61,7 @@ export function useGameConnection(session: SessionIdentity | null) {
         setStatus(retries.current || stateRef.current ? 'reconnecting' : 'connecting');
         const { ticket } = await createTicket(session);
         if (stopped) { connecting = false; return; }
+        handshakeStartedAt = Date.now();
         const socket = new WebSocket(socketUrl(session, ticket));
         socketRef.current = socket;
         syncedSocketRef.current = null;
@@ -66,10 +78,19 @@ export function useGameConnection(session: SessionIdentity | null) {
         };
         socket.onmessage = (event) => {
           if (stopped || socket !== socketRef.current) return;
+          lastMessageAt = Date.now();
           let message: ServerMessage;
           try { message = JSON.parse(String(event.data)) as ServerMessage; }
           catch { setError('The table sent an unreadable update. Reconnecting safely.'); socket.close(); return; }
           if (message.type === 'snapshot') {
+            // Broadcasts can race a reconnect; never step back to an older revision.
+            if (stateRef.current && message.state.revision < stateRef.current.revision) return;
+            const firstSyncForSocket = syncedSocketRef.current !== socket;
+            if (firstSyncForSocket) {
+              // A reconnect's own commands are already folded into this snapshot.
+              pendingCommandsRef.current.clear();
+              observedRevisionRef.current = message.state.revision;
+            } else observedRevisionRef.current = Math.max(observedRevisionRef.current, message.state.revision);
             stateRef.current = message.state;
             setState(message.state);
             syncedSocketRef.current = socket;
@@ -79,9 +100,19 @@ export function useGameConnection(session: SessionIdentity | null) {
           } else if (message.type === 'pong') {
             window.clearTimeout(pongDeadline);
             pongDeadline = 0;
+          } else if (message.type === 'commandAccepted') {
+            observedRevisionRef.current = Math.max(observedRevisionRef.current, message.revision);
+            pendingCommandsRef.current.delete(message.commandId);
           } else if (message.type === 'commandRejected') {
-            setError(friendlyError(message.message));
-            if (message.state) { stateRef.current = message.state; setState(message.state); }
+            pendingCommandsRef.current.delete(message.commandId);
+            setError(message.code === 'STALE_REVISION'
+              ? 'The table moved on — showing the latest board. Try again.'
+              : friendlyError(message.message));
+            if (message.state && (!stateRef.current || message.state.revision >= stateRef.current.revision)) {
+              stateRef.current = message.state;
+              setState(message.state);
+              observedRevisionRef.current = Math.max(observedRevisionRef.current, message.state.revision);
+            }
           } else if (message.type === 'protocolMismatch') setError('The game was updated. Refresh this page to continue safely.');
         };
         socket.onclose = () => {
@@ -97,16 +128,49 @@ export function useGameConnection(session: SessionIdentity | null) {
       } catch (cause) {
         connecting = false;
         if (stopped) return;
+        if (cause instanceof ApiError && (cause.status === 401 || cause.status === 404)) {
+          // The seat or room is gone for good — retrying can never succeed.
+          setError(friendlyError(cause.message));
+          setStatus('rejected');
+          return;
+        }
         setError(friendlyError(cause instanceof Error ? cause.message : 'Connection failed.')); setStatus('reconnecting'); retries.current += 1;
         scheduleReconnect();
       }
     };
-    const reconnectNow = () => {
+    const forceReconnect = () => {
+      if (stopped) return;
+      clearHeartbeat();
+      syncedSocketRef.current = null;
+      const socket = socketRef.current;
+      socketRef.current = null;
+      setStatus('reconnecting');
+      try { socket?.close(); } catch { /* half-open sockets can throw on close */ }
+      void connect();
+    };
+    const verifyOrReconnect = () => {
+      if (stopped) return;
       clearRetry();
       const socket = socketRef.current;
-      if (!socket || socket.readyState === WebSocket.CLOSED) void connect();
+      if (socket?.readyState === WebSocket.OPEN) {
+        // A socket that just delivered a message is provably alive — probing it
+        // risks tearing down a healthy connection on a slow network.
+        if (Date.now() - lastMessageAt < 5_000) return;
+        // The socket may be half-open after the OS suspended the app: probe it
+        // and rebuild unless the server answers quickly.
+        socket.send('ping');
+        window.clearTimeout(pongDeadline);
+        pongDeadline = window.setTimeout(forceReconnect, 4_000);
+      } else if (socket?.readyState === WebSocket.CONNECTING) {
+        // Only abandon a handshake that has clearly stalled (its 30s ticket may
+        // be spent); young handshakes are allowed to finish.
+        if (Date.now() - handshakeStartedAt < 10_000) return;
+        forceReconnect();
+      } else {
+        void connect();
+      }
     };
-    const onVisibility = () => { if (document.visibilityState === 'visible') reconnectNow(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') verifyOrReconnect(); };
     const onOffline = () => {
       clearRetry();
       syncedSocketRef.current = null;
@@ -116,7 +180,7 @@ export function useGameConnection(session: SessionIdentity | null) {
       socket?.close();
       scheduleReconnect();
     };
-    const onOnline = () => reconnectNow();
+    const onOnline = () => verifyOrReconnect();
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('offline', onOffline);
     window.addEventListener('online', onOnline);
@@ -138,8 +202,13 @@ export function useGameConnection(session: SessionIdentity | null) {
   const send = useCallback((command: Omit<GameCommand, 'playerId'>) => {
     const socket = socketRef.current;
     if (!session || socket?.readyState !== WebSocket.OPEN || syncedSocketRef.current !== socket || !stateRef.current) { setError('Wait for the game to reconnect.'); return; }
+    const commandId = crypto.randomUUID();
+    // Commands already sent but not yet acknowledged sit ahead of this one, so
+    // the server will process this one at observed + those in-flight.
+    const expectedRevision = observedRevisionRef.current + pendingCommandsRef.current.size;
+    pendingCommandsRef.current.add(commandId);
     const { type, ...payload } = command;
-    socket.send(JSON.stringify({ protocolVersion: PROTOCOL_VERSION, commandId: crypto.randomUUID(), expectedRevision: stateRef.current.revision, type, payload }));
+    socket.send(JSON.stringify({ protocolVersion: PROTOCOL_VERSION, commandId, expectedRevision, type, payload }));
   }, [session]);
 
   useEffect(() => {

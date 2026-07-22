@@ -56,6 +56,11 @@ input, select { width: 100%; min-height: 46px; border: 1px solid var(--line); bo
 .update-banner button { min-height:44px; border-color:white; background:white; }
 .loading-shell { display: grid; place-content: center; justify-items: center; text-align: center; }
 .loading-shell h1 { margin: 18px 0 4px; }
+.loading-shell .text-button { margin-top: 14px; }
+.resume-card { display: grid; gap: 8px; margin-bottom: 18px; padding: 14px 16px; border: 1px solid rgba(47,111,89,.4); border-radius: 14px; background: rgba(248,241,223,.72); }
+.resume-card h2 { margin: 0; font-size: 1.25rem; }
+.resume-card button { min-height: 44px; background: #fffaf0; font-size: .88rem; }
+.reconnect-sheet .text-button { margin-top: 10px; }
 .spinner { width: 30px; height: 30px; border: 3px solid rgba(23,37,31,.15); border-top-color: #17251f; border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .table-header { display: flex; align-items: center; justify-content: space-between; }

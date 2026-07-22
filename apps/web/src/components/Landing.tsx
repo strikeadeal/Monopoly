@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { GameSettings } from '@monopoly/game';
 import type { PlayerForm } from '../api';
 
-export function Landing({ onCreate, onJoin, busy, error, initialRoomCode = '', updateReady = false, onUpdate }: { onCreate: (player: PlayerForm, settings: GameSettings) => void; onJoin: (code: string, player: PlayerForm) => void; busy: boolean; error: string | null; initialRoomCode?: string; updateReady?: boolean; onUpdate?: () => void }) {
+export function Landing({ onCreate, onJoin, busy, error, initialRoomCode = '', updateReady = false, onUpdate, resumeSessions = [], onResume }: { onCreate: (player: PlayerForm, settings: GameSettings) => void; onJoin: (code: string, player: PlayerForm) => void; busy: boolean; error: string | null; initialRoomCode?: string; updateReady?: boolean; onUpdate?: () => void; resumeSessions?: { roomCode: string }[]; onResume?: (roomCode: string) => void }) {
   const [mode, setMode] = useState<'create' | 'join'>(initialRoomCode ? 'join' : 'create');
   const [showInstall, setShowInstall] = useState(false);
   const [nickname, setNickname] = useState(''); const [roomCode, setRoomCode] = useState(initialRoomCode);
@@ -17,6 +17,11 @@ export function Landing({ onCreate, onJoin, busy, error, initialRoomCode = '', u
   return <main className="landing-shell">
     <header className="brand"><span className="brand-mark">MP</span><span>Monopoly Party</span></header>
     <section className="landing-copy"><h1>The board in every pocket.</h1><p>Start a room, pull in your friends, and let the bank run itself.</p></section>
+    {resumeSessions.length > 0 && onResume ? <aside className="resume-card" aria-label="Rejoin your table">
+      <span className="eyeline">WELCOME BACK</span>
+      <h2>Rejoin your table</h2>
+      {resumeSessions.slice(0, 3).map((stored) => <button type="button" key={stored.roomCode} onClick={() => onResume(stored.roomCode)}>Return to room {stored.roomCode}</button>)}
+    </aside> : null}
     <form className="join-panel" onSubmit={submit}>
       <div className="mode-switch" aria-label="Choose create or join">
         <button type="button" className={mode === 'create' ? 'active' : ''} onClick={() => setMode('create')}>Create</button>

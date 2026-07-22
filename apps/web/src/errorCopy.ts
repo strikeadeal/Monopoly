@@ -28,7 +28,10 @@ const ENGINE_COPY: Record<string, string> = {
   'only the host can start': 'Only the host can start the game.',
   'choose a character first': 'Choose a character first.',
   'character already used': 'Another player already has that character.',
-  '2–6 ready players are required': 'The game needs 2–6 ready players to start.'
+  '2–6 ready players are required': 'The game needs 2–6 ready players to start.',
+  'room is unavailable': "That table can't take new players — the game has already started or the room is full.",
+  'Room not found or expired.': "That room code doesn't match an open table. Check the code or start a new game.",
+  'Reconnect token rejected.': 'Your seat at that table is no longer available.'
 };
 
 const NETWORK_PATTERN = /failed to fetch|networkerror|load failed|network request failed/iu;

@@ -18,4 +18,10 @@ describe('friendlyError', () => {
     expect(friendlyError('The game changed on another device.')).toBe('The game changed on another device.');
     expect(friendlyError('   ')).toBe('Something went wrong. Try again.');
   });
+
+  it('explains room and seat availability in table copy', () => {
+    expect(friendlyError('room is unavailable')).toBe("That table can't take new players — the game has already started or the room is full.");
+    expect(friendlyError('Room not found or expired.')).toBe("That room code doesn't match an open table. Check the code or start a new game.");
+    expect(friendlyError('Reconnect token rejected.')).toBe('Your seat at that table is no longer available.');
+  });
 });

@@ -232,6 +232,16 @@ test('two isolated phones create, join, start, and recover the same room', async
   await host.reload();
   await expect(host.getByLabel('Monopoly board')).toBeVisible();
   await expect(host.getByText('Live')).toBeVisible();
+
+  // Closing the app is not leaving: the landing screen offers the stored seat back.
+  await guest.goto('/#/');
+  await expect(guest.getByText('The board in every pocket.')).toBeVisible();
+  await guest.getByRole('button', { name: `Return to room ${roomCode}` }).click();
+  await expect(guest.getByLabel('Monopoly board')).toBeVisible();
+  await expect(guest.getByText('Live')).toBeVisible();
+  const resumedCardClose = guest.getByRole('button', { name: 'Close card' });
+  if (await resumedCardClose.isVisible().catch(() => false)) await resumedCardClose.click();
+
   const guestIdentity = await guest.evaluate((code) => JSON.parse(localStorage.getItem(`monopoly-party:session:${code}`) ?? 'null') as { reconnectToken: string }, roomCode);
   await guest.getByRole('button', { name: 'Leave room' }).click();
   await expect(guest.getByRole('dialog', { name: 'Leave this room?' })).toBeVisible();
@@ -242,6 +252,14 @@ test('two isolated phones create, join, start, and recover the same room', async
   await expect(host.getByRole('heading', { name: 'Alex wins' })).toBeVisible();
   const rejectedTicket = await guestContext.request.post(`http://127.0.0.1:8787/api/rooms/${roomCode}/socket-ticket`, { headers: { authorization: `Bearer ${guestIdentity.reconnectToken}` } });
   expect(rejectedTicket.status()).toBe(401);
+
+  // A revoked seat lands back on the landing screen with clear copy instead of spinning forever.
+  await guest.evaluate(({ code, identity }) => localStorage.setItem(`monopoly-party:session:${code}`, JSON.stringify({ roomCode: code, playerId: 'stale', reconnectToken: identity.reconnectToken })), { code: roomCode, identity: guestIdentity });
+  await guest.goto(`/#/room/${roomCode}`);
+  await expect(guest.getByText('That table is no longer available. Join a new room or start one.')).toBeVisible();
+  await expect(guest.getByText('The board in every pocket.')).toBeVisible();
+  expect(await guest.evaluate((code) => localStorage.getItem(`monopoly-party:session:${code}`), roomCode)).toBeNull();
+
   await host.reload();
   await expect(host.getByRole('heading', { name: 'Alex wins' })).toBeVisible();
   await expect(host.getByText('Live')).toBeVisible();

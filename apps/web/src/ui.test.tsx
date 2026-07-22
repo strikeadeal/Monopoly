@@ -652,6 +652,15 @@ describe('mobile game UI', () => {
     expect(screen.queryByRole('button', { name: 'Auction' })).toBeNull();
   });
 
+  it('surfaces connection errors inside the lobby instead of dropping them silently', () => {
+    const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 1_000, () => 0);
+    const clearError = vi.fn();
+    render(<Lobby state={state} playerId="p1" send={() => undefined} onLeave={() => undefined} leaving={false} leaveError={null} error="Wait for the game to reconnect." clearError={clearError} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Wait for the game to reconnect.');
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss message' }));
+    expect(clearError).toHaveBeenCalledOnce();
+  });
+
   it('lets only the lobby host toggle auctions and shows the setting to everyone', () => {
     const state = createLobby({ id: 'p1', name: 'Alex', token: 'rocket' }, { mode: 'official' }, 1_000, () => 0);
     state.players.push({ ...state.players[0]!, id: 'p2', name: 'Sam', token: 'key' });
@@ -680,6 +689,25 @@ describe('mobile game UI', () => {
     expect(screen.getByRole('button', { name: 'Create game' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Join' })).toBeInTheDocument();
     expect(screen.getByText('The board in every pocket.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Rejoin your table')).toBeNull();
+  });
+
+  it('offers to rejoin the newest stored tables from the landing screen', () => {
+    const onResume = vi.fn();
+    const stored = [{ roomCode: 'AAA111' }, { roomCode: 'BBB222' }, { roomCode: 'CCC333' }, { roomCode: 'DDD444' }];
+    render(<Landing onCreate={() => undefined} onJoin={() => undefined} busy={false} error={null} resumeSessions={stored} onResume={onResume} />);
+    const card = screen.getByLabelText('Rejoin your table');
+    expect(within(card).getAllByRole('button')).toHaveLength(3);
+    fireEvent.click(within(card).getByRole('button', { name: 'Return to room AAA111' }));
+    expect(onResume).toHaveBeenCalledWith('AAA111');
+  });
+
+  it('lets a disconnected player back out of the reconnect overlay without leaving', () => {
+    const onExit = vi.fn();
+    render(<GameScreen state={makeState()} {...screenProps} status="reconnecting" onExit={onExit} />);
+    expect(screen.getByText('Reconnecting to the table')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to home' }));
+    expect(onExit).toHaveBeenCalledOnce();
   });
 
   it('collects a name without asking for a character before joining', () => {
