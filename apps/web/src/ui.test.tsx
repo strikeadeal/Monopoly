@@ -187,7 +187,14 @@ describe('mobile game UI', () => {
     expect(dice[1]).toHaveAttribute('data-die-value', '3');
     expect(dice[0]).not.toHaveAttribute('data-die-value', dice[1]?.getAttribute('data-die-value'));
 
-    await act(async () => vi.advanceTimersByTimeAsync(470));
+    await act(async () => vi.advanceTimersByTimeAsync(469));
+    expect(screen.getByRole('img', { name: 'Rolled 3 and 4' })).toHaveAttribute('data-state', 'rolling');
+    expect(dice[0]).toHaveAttribute('data-die-value', '6');
+    expect(dice[1]).toHaveAttribute('data-die-value', '1');
+    expect(dice[0]).not.toHaveAttribute('data-die-value', '3');
+    expect(dice[1]).not.toHaveAttribute('data-die-value', '4');
+
+    await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(screen.getByRole('img', { name: 'Rolled 3 and 4' })).toHaveAttribute('data-state', 'settled');
     expect(dice[0]).toHaveAttribute('data-die-value', '3');
     expect(dice[1]).toHaveAttribute('data-die-value', '4');
@@ -245,7 +252,10 @@ describe('mobile game UI', () => {
     expect(screen.getByLabelText('Alex on GO')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull();
 
-    await act(async () => vi.advanceTimersByTimeAsync(600));
+    await act(async () => vi.advanceTimersByTimeAsync(599));
+    expect(screen.getByLabelText('Alex on GO')).toBeInTheDocument();
+
+    await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(screen.getByLabelText('Alex on Armadale')).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(140));
     expect(screen.getByLabelText('Alex on Community Chest')).toBeInTheDocument();
