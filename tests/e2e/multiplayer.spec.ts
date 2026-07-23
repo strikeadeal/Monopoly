@@ -351,8 +351,75 @@ test('two landscape phones preserve authoritative ownership through reconnect an
       expect(device.hasTouch).toBe(testInfo.project.use.hasTouch);
     }
 
+    const hostRollingDice = host.locator('.dice-row[data-state="rolling"]');
+    const guestRollingDice = guest.locator('.dice-row[data-state="rolling"]');
+    const rollingDiceVisible = Promise.all([
+      hostRollingDice.waitFor({ state: 'visible' }),
+      guestRollingDice.waitFor({ state: 'visible' })
+    ]);
     await debugSend(host, { type: 'ROLL', dice: [1, 2] });
+    await rollingDiceVisible;
+    for (const page of [host, guest]) {
+      await expect(page.getByRole('img', { name: 'Rolled 1 and 2' })).toHaveAttribute('data-state', 'rolling');
+    }
+
+    const rollingDiceGeometry = await host.evaluate(() => {
+      const turnCard = document.querySelector<HTMLElement>('.turn-card')!.getBoundingClientRect();
+      return {
+        dice: [...document.querySelectorAll<HTMLElement>('.dice-row[data-state="rolling"] .die')].map((die) => {
+          const bounds = die.getBoundingClientRect();
+          return {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+            layoutWidth: die.offsetWidth,
+            layoutHeight: die.offsetHeight
+          };
+        }),
+        turnCard: { left: turnCard.left, top: turnCard.top, right: turnCard.right, bottom: turnCard.bottom },
+        viewport: { width: innerWidth, height: innerHeight },
+        horizontalOverflow: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth,
+        controls: [...document.querySelectorAll<HTMLElement>('.turn-card button')].map((button) => {
+          const bounds = button.getBoundingClientRect();
+          return { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom };
+        })
+      };
+    });
+    expect(rollingDiceGeometry.dice).toHaveLength(2);
+    for (const die of rollingDiceGeometry.dice) {
+      expect(die.layoutWidth).toBe(28);
+      expect(die.layoutHeight).toBe(28);
+      expect(die.x).toBeGreaterThanOrEqual(rollingDiceGeometry.turnCard.left);
+      expect(die.y).toBeGreaterThanOrEqual(rollingDiceGeometry.turnCard.top);
+      expect(die.x + die.width).toBeLessThanOrEqual(rollingDiceGeometry.turnCard.right);
+      expect(die.y + die.height).toBeLessThanOrEqual(rollingDiceGeometry.turnCard.bottom);
+    }
+    expect(rollingDiceGeometry.horizontalOverflow).toBe(false);
+    expect(rollingDiceGeometry.turnCard.left).toBeGreaterThanOrEqual(0);
+    expect(rollingDiceGeometry.turnCard.top).toBeGreaterThanOrEqual(0);
+    expect(rollingDiceGeometry.turnCard.right).toBeLessThanOrEqual(rollingDiceGeometry.viewport.width);
+    expect(rollingDiceGeometry.turnCard.bottom).toBeLessThanOrEqual(rollingDiceGeometry.viewport.height);
+    for (const control of rollingDiceGeometry.controls) {
+      expect(control.left).toBeGreaterThanOrEqual(rollingDiceGeometry.turnCard.left);
+      expect(control.top).toBeGreaterThanOrEqual(rollingDiceGeometry.turnCard.top);
+      expect(control.right).toBeLessThanOrEqual(rollingDiceGeometry.turnCard.right);
+      expect(control.bottom).toBeLessThanOrEqual(rollingDiceGeometry.turnCard.bottom);
+      for (const die of rollingDiceGeometry.dice) {
+        const overlaps = die.x < control.right && die.x + die.width > control.left && die.y < control.bottom && die.y + die.height > control.top;
+        expect(overlaps).toBe(false);
+      }
+    }
+    const hostDice = host.getByRole('img', { name: 'Rolled 1 and 2' });
+    await Promise.all([
+      expect(hostDice).toHaveAttribute('data-state', 'settled'),
+      expect(host.locator('.board')).toHaveClass(/is-animating/u)
+    ]);
     await waitForDebugState(host, (state) => state.phase.type === 'purchase' && state.phase.spaceIndex === 3);
+    await expect(host.locator('.board')).not.toHaveClass(/is-animating/u);
+    const hostSettledDice = host.locator('.purchase-card .dice-row');
+    await expect(hostSettledDice).toHaveAttribute('data-state', 'settled');
+    await expect(hostSettledDice).toHaveAttribute('aria-label', 'Rolled 1 and 2');
     await debugSend(host, { type: 'BUY_PROPERTY' });
     await waitForDebugState(host, (state) => Boolean(state.properties[3]?.ownerId));
     const afterMidlandPurchase = await readDebugState(host);
