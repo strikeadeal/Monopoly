@@ -412,6 +412,7 @@ test('two landscape phones preserve authoritative ownership through reconnect an
     }
     const hostDice = host.getByRole('img', { name: 'Rolled 1 and 2' });
     await Promise.all([
+      expect(hostDice).toBeVisible(),
       expect(hostDice).toHaveAttribute('data-state', 'settled'),
       expect(host.locator('.board')).toHaveClass(/is-animating/u)
     ]);
