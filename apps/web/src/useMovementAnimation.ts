@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BOARD, type GameState, type MovementEvent } from '@monopoly/game';
+import { DICE_ROLL_DURATION_MS } from './animationTiming';
+import { useReducedMotion } from './useReducedMotion';
 
-const DICE_DELAY_MS = 600;
 const STEP_DURATION_MS = 140;
 const DIRECT_DEPART_MS = 140;
 const DIRECT_ARRIVE_MS = 220;
@@ -35,18 +36,6 @@ function isValidMovement(movement: MovementEvent, destination: number) {
     }
   }
   return lastPosition === destination;
-}
-
-function useReducedMotion() {
-  const [reduced, setReduced] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
-  useEffect(() => {
-    const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    if (!query) return undefined;
-    const update = () => setReduced(query.matches);
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-  return reduced;
 }
 
 export function useMovementAnimation(state: GameState) {
@@ -93,7 +82,7 @@ export function useMovementAnimation(state: GameState) {
     const run = async () => {
       let currentPosition = movement.startPosition;
       present(currentPosition, null);
-      await delay(DICE_DELAY_MS);
+      await delay(DICE_ROLL_DURATION_MS);
       if (cancelled) return;
 
       for (const [segmentIndex, segment] of movement.segments.entries()) {

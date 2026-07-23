@@ -195,12 +195,14 @@ button.balance-chip { min-height:0; font:inherit; font-weight:inherit; text-alig
 .space-icon { display: block; margin-bottom: 1px; line-height: 0; color: #3c5348; }
 .space-icon svg { width: clamp(9px, 3.2vw, 14px); height: auto; }
 .dice-line { margin-bottom: 8px; }
-.dice-row { display: inline-flex; gap: 8px; vertical-align: middle; }
-.die { display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); gap: 2px; width: 34px; height: 34px; padding: 5px; border: 1.5px solid #1d3128; border-radius: 7px; background: #fffaf0; box-shadow: 2px 2px 0 rgba(29,49,40,.35); }
+.dice-row { display: inline-flex; gap: 8px; perspective: 140px; vertical-align: middle; }
+.die { display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); gap: 2px; width: 34px; height: 34px; padding: 5px; border: 1.5px solid #1d3128; border-radius: 7px; background: #fffaf0; box-shadow: 2px 2px 0 rgba(29,49,40,.35); transform-style: preserve-3d; will-change: transform, box-shadow; }
 .die i { border-radius: 50%; }
 .die .pip { background: #17251f; }
-.die.is-rolling { animation: dice-tumble .6s cubic-bezier(.3,1.4,.5,1) both; }
-@keyframes dice-tumble { 0% { transform: translateY(-14px) rotate(-160deg) scale(.7); opacity: 0; } 60% { transform: translateY(3px) rotate(12deg) scale(1.05); opacity: 1; } 100% { transform: translateY(0) rotate(0) scale(1); } }
+.die.is-rolling { animation: dice-tumble-one 560ms cubic-bezier(.28,1.2,.5,1) both; }
+.die-2.is-rolling { animation-name: dice-tumble-two; animation-duration: 520ms; animation-delay: 80ms; }
+@keyframes dice-tumble-one { 0% { transform: translateY(-10px) rotateX(-68deg) rotateY(-125deg) rotateZ(-24deg) scale(.82); box-shadow: 0 12px 0 rgba(29,49,40,.18); } 38% { transform: translateY(3px) rotateX(38deg) rotateY(64deg) rotateZ(12deg) scale(1.06); box-shadow: 2px 1px 0 rgba(29,49,40,.42); } 68% { transform: translateY(-2px) rotateX(-17deg) rotateY(-24deg) rotateZ(-5deg) scale(.98); } 100% { transform: translateY(0) rotateX(0) rotateY(0) rotateZ(0) scale(1); box-shadow: 2px 2px 0 rgba(29,49,40,.35); } }
+@keyframes dice-tumble-two { 0% { transform: translateY(-8px) rotateX(72deg) rotateY(116deg) rotateZ(20deg) scale(.84); box-shadow: 0 11px 0 rgba(29,49,40,.18); } 42% { transform: translateY(4px) rotateX(-44deg) rotateY(-56deg) rotateZ(-10deg) scale(1.05); box-shadow: 3px 1px 0 rgba(29,49,40,.42); } 70% { transform: translateY(-1px) rotateX(15deg) rotateY(22deg) rotateZ(4deg) scale(.99); } 100% { transform: translateY(0) rotateX(0) rotateY(0) rotateZ(0) scale(1); box-shadow: 2px 2px 0 rgba(29,49,40,.35); } }
 .card-sheet h2 { font-size: 1.9rem; }
 .card-sheet .card-detail { margin: 0 0 18px; color: #4a5a53; font-size: 1rem; line-height: 1.45; }
 .card-sheet .primary-button { width: 100%; }

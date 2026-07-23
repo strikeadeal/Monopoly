@@ -5,12 +5,14 @@ import { ActivityTimeline } from './ActivityTimeline';
 import { BoardNavigator } from './BoardNavigator';
 import { CardReveal } from './CardReveal';
 import { DiceRoll } from './Dice';
+import { DICE_ROLL_DURATION_MS } from '../animationTiming';
 import { LeaveRoom } from './LeaveRoom';
 import { PlayerBalances } from './PlayerBalances';
 import { TableLedger } from './TableLedger';
 import { useCompactLayout, useLandscapePhone } from '../useCompactLayout';
 import { useMoneyAnnouncements } from '../useMoneyAnnouncements';
 import { useMovementAnimation } from '../useMovementAnimation';
+import { useReducedMotion } from '../useReducedMotion';
 import { GROUP_COLORS as groupColors, PLAYER_COLORS } from '../theme';
 
 type Sender = (command: Record<string, unknown> & { type: string }) => void;
@@ -70,16 +72,21 @@ function PropertySheet({ state, index, playerId, send, onClose }: { state: GameS
 
 function useDiceAnimation(lastRoll: GameState['lastRoll']) {
   const [rolling, setRolling] = useState(false);
+  const reducedMotion = useReducedMotion();
   const previous = useRef<{ seeded: boolean; roll: GameState['lastRoll'] }>({ seeded: false, roll: null });
   useEffect(() => {
     const wasNull = previous.current.roll === null;
     const seeded = previous.current.seeded;
     previous.current = { seeded: true, roll: lastRoll };
+    if (reducedMotion) {
+      setRolling(false);
+      return undefined;
+    }
     if (!seeded || !wasNull || !lastRoll) return undefined;
     setRolling(true);
-    const timer = window.setTimeout(() => setRolling(false), 700);
+    const timer = window.setTimeout(() => setRolling(false), DICE_ROLL_DURATION_MS);
     return () => window.clearTimeout(timer);
-  }, [lastRoll]);
+  }, [lastRoll, reducedMotion]);
   return rolling;
 }
 

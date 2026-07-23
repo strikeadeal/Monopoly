@@ -6,6 +6,7 @@ import { BOARD, createGame, createLobby, reduceGame } from '@monopoly/game';
 import { ActivityTimeline } from './components/ActivityTimeline';
 import { Board } from './components/Board';
 import { BoardNavigator } from './components/BoardNavigator';
+import { DiceRoll } from './components/Dice';
 import { GameScreen } from './components/GameScreen';
 import { Landing } from './components/Landing';
 import { LeaveRoom } from './components/LeaveRoom';
@@ -165,8 +166,47 @@ describe('mobile game UI', () => {
     state.phase = { type: 'awaiting-end' };
     const { container } = render(<GameScreen state={state} {...screenProps} />);
     expect(screen.getByRole('img', { name: 'Rolled 3 and 4' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Rolled 3 and 4' })).toHaveAttribute('data-state', 'settled');
     expect(container.querySelectorAll('.die')).toHaveLength(2);
     expect(container.querySelector('.die.is-rolling')).toBeNull();
+  });
+
+  it('cycles each die through distinct staggered transient faces before settling at 600 ms', async () => {
+    vi.useFakeTimers();
+    const { container } = render(<DiceRoll roll={[3, 4]} rolling />);
+    const dice = container.querySelectorAll<HTMLElement>('.die');
+    expect(screen.getByRole('img', { name: 'Rolled 3 and 4' })).toHaveAttribute('data-state', 'rolling');
+    expect(dice[0]).toHaveAttribute('data-die-value', '2');
+    expect(dice[1]).toHaveAttribute('data-die-value', '6');
+
+    await act(async () => vi.advanceTimersByTimeAsync(110));
+    expect(dice[0]).toHaveAttribute('data-die-value', '5');
+    expect(dice[1]).toHaveAttribute('data-die-value', '6');
+
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+    expect(dice[1]).toHaveAttribute('data-die-value', '3');
+    expect(dice[0]).not.toHaveAttribute('data-die-value', dice[1]?.getAttribute('data-die-value'));
+
+    await act(async () => vi.advanceTimersByTimeAsync(470));
+    expect(screen.getByRole('img', { name: 'Rolled 3 and 4' })).toHaveAttribute('data-state', 'settled');
+    expect(dice[0]).toHaveAttribute('data-die-value', '3');
+    expect(dice[1]).toHaveAttribute('data-die-value', '4');
+  });
+
+  it('settles dice immediately and clears transient timers when the roll changes or unmounts', async () => {
+    vi.useFakeTimers();
+    const clearTimeout = vi.spyOn(window, 'clearTimeout');
+    const { container, rerender, unmount } = render(<DiceRoll roll={[1, 2]} rolling />);
+    rerender(<DiceRoll roll={[5, 6]} rolling={false} />);
+    const dice = container.querySelectorAll<HTMLElement>('.die');
+    expect(screen.getByRole('img', { name: 'Rolled 5 and 6' })).toHaveAttribute('data-state', 'settled');
+    expect(dice[0]).toHaveAttribute('data-die-value', '5');
+    expect(dice[1]).toHaveAttribute('data-die-value', '6');
+
+    rerender(<DiceRoll roll={[5, 6]} rolling />);
+    unmount();
+    expect(clearTimeout).toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(600));
   });
 
   it('shows every player authoritative cash balance on the game screen', () => {
@@ -214,6 +254,29 @@ describe('mobile game UI', () => {
     expect(screen.queryByRole('button', { name: 'Buy' })).toBeNull();
     await act(async () => vi.advanceTimersByTimeAsync(140));
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
+  });
+
+  it('replays the tactile dice tumble after lastRoll is reset for the next turn', async () => {
+    vi.useFakeTimers();
+    const initial = makeState();
+    const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
+    const first = structuredClone(initial);
+    first.lastRoll = [1, 2];
+    first.phase = { type: 'awaiting-end' };
+    rerender(<GameScreen state={first} {...screenProps} />);
+    expect(screen.getByRole('img', { name: 'Rolled 1 and 2' })).toHaveAttribute('data-state', 'rolling');
+    await act(async () => vi.advanceTimersByTimeAsync(600));
+    expect(screen.getByRole('img', { name: 'Rolled 1 and 2' })).toHaveAttribute('data-state', 'settled');
+
+    const reset = structuredClone(first);
+    reset.lastRoll = null;
+    reset.phase = { type: 'awaiting-roll' };
+    rerender(<GameScreen state={reset} {...screenProps} />);
+    const next = structuredClone(reset);
+    next.lastRoll = [5, 6];
+    next.phase = { type: 'awaiting-end' };
+    rerender(<GameScreen state={next} {...screenProps} />);
+    expect(screen.getByRole('img', { name: 'Rolled 5 and 6' })).toHaveAttribute('data-state', 'rolling');
   });
 
   it('pauses on a card square and resumes card movement after dismissal', async () => {
@@ -462,6 +525,7 @@ describe('mobile game UI', () => {
     expect(screen.getByLabelText('Alex on Midland')).toBeInTheDocument();
     expect(screen.queryByText('Alex is moving…')).toBeNull();
     expect(screen.getByRole('button', { name: 'Buy' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Rolled 1 and 2' })).toHaveAttribute('data-state', 'settled');
     window.matchMedia = originalMatchMedia;
   });
 
