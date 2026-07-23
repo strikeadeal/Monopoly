@@ -351,6 +351,8 @@ test('two landscape phones preserve authoritative ownership through reconnect an
       expect(device.hasTouch).toBe(testInfo.project.use.hasTouch);
     }
 
+    await host.clock.install();
+    await host.clock.pauseAt(Date.now());
     const hostRollingDice = host.locator('.dice-row[data-state="rolling"]');
     const guestRollingDice = guest.locator('.dice-row[data-state="rolling"]');
     const rollingDiceVisible = Promise.all([
@@ -411,9 +413,11 @@ test('two landscape phones preserve authoritative ownership through reconnect an
       }
     }
     const hostDice = host.getByRole('img', { name: 'Rolled 1 and 2' });
+    await host.clock.runFor(600);
     await expect(hostDice).toHaveAttribute('data-state', 'settled');
     await expect(hostDice).toBeVisible();
     await expect(host.locator('.board')).toHaveClass(/is-animating/u);
+    await host.clock.runFor(420);
     await waitForDebugState(host, (state) => state.phase.type === 'purchase' && state.phase.spaceIndex === 3);
     await expect(host.locator('.board')).not.toHaveClass(/is-animating/u);
     const hostSettledDice = host.locator('.purchase-card .dice-row');
