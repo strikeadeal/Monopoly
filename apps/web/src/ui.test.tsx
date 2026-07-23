@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { useLayoutEffect, useRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BOARD, createGame, createLobby, reduceGame } from '@monopoly/game';
 import { ActivityTimeline } from './components/ActivityTimeline';
@@ -22,6 +23,14 @@ const makeState = () => createGame([
 ], { mode: 'official' }, () => 0);
 const playerColors = ['#447760', '#b64c45', '#406a98', '#b38643', '#785782', '#39433e'];
 const screenProps = { playerId: 'p1', status: 'online', error: null, send: () => undefined, clearError: () => undefined, onLeave: () => undefined, leaving: false, leaveError: null };
+
+function DiceLayoutProbe({ roll, rolling, onLayout }: { roll: [number, number]; rolling: boolean; onLayout: (values: string[]) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    onLayout([...ref.current!.querySelectorAll<HTMLElement>('.die')].map((die) => die.dataset.dieValue ?? ''));
+  }, [onLayout, roll, rolling]);
+  return <div ref={ref}><DiceRoll roll={roll} rolling={rolling} /></div>;
+}
 
 describe('mobile game UI', () => {
   it('renders every board space with the current players', () => {
@@ -216,6 +225,19 @@ describe('mobile game UI', () => {
     await act(async () => vi.advanceTimersByTimeAsync(600));
   });
 
+  it('renders authoritative faces in the same layout commit that ends rolling', async () => {
+    vi.useFakeTimers();
+    const layouts: string[][] = [];
+    const onLayout = (values: string[]) => layouts.push(values);
+    const { rerender } = render(<DiceLayoutProbe roll={[1, 2]} rolling onLayout={onLayout} />);
+    await act(async () => vi.advanceTimersByTimeAsync(130));
+    layouts.length = 0;
+
+    rerender(<DiceLayoutProbe roll={[5, 6]} rolling={false} onLayout={onLayout} />);
+
+    expect(layouts).toEqual([['5', '6']]);
+  });
+
   it('shows every player authoritative cash balance on the game screen', () => {
     const state = makeState();
     state.players[0]!.cash = 1325;
@@ -287,6 +309,21 @@ describe('mobile game UI', () => {
     next.phase = { type: 'awaiting-end' };
     rerender(<GameScreen state={next} {...screenProps} />);
     expect(screen.getByRole('img', { name: 'Rolled 5 and 6' })).toHaveAttribute('data-state', 'rolling');
+  });
+
+  it('seeds a recovered online roll as settled after reconnecting with no roll', () => {
+    const initial = makeState();
+    const { rerender } = render(<GameScreen state={initial} {...screenProps} />);
+    const reconnecting = structuredClone(initial);
+    reconnecting.lastRoll = null;
+    rerender(<GameScreen state={reconnecting} {...screenProps} status="reconnecting" />);
+
+    const recovered = structuredClone(reconnecting);
+    recovered.lastRoll = [3, 4];
+    recovered.phase = { type: 'awaiting-end' };
+    rerender(<GameScreen state={recovered} {...screenProps} status="online" />);
+
+    expect(screen.getByRole('img', { name: 'Rolled 3 and 4' })).toHaveAttribute('data-state', 'settled');
   });
 
   it('pauses on a card square and resumes card movement after dismissal', async () => {

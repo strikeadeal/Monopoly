@@ -411,11 +411,9 @@ test('two landscape phones preserve authoritative ownership through reconnect an
       }
     }
     const hostDice = host.getByRole('img', { name: 'Rolled 1 and 2' });
-    await Promise.all([
-      expect(hostDice).toBeVisible(),
-      expect(hostDice).toHaveAttribute('data-state', 'settled'),
-      expect(host.locator('.board')).toHaveClass(/is-animating/u)
-    ]);
+    await expect(hostDice).toHaveAttribute('data-state', 'settled');
+    await expect(hostDice).toBeVisible();
+    await expect(host.locator('.board')).toHaveClass(/is-animating/u);
     await waitForDebugState(host, (state) => state.phase.type === 'purchase' && state.phase.spaceIndex === 3);
     await expect(host.locator('.board')).not.toHaveClass(/is-animating/u);
     const hostSettledDice = host.locator('.purchase-card .dice-row');

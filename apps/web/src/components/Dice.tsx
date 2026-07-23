@@ -40,8 +40,9 @@ export function DiceRoll({ roll, rolling }: { roll: [number, number]; rolling: b
   }, [rolling, first, second]);
 
   const isRolling = rolling && !settled;
+  const visibleValues: [number, number] = isRolling ? displayedValues : [first, second];
   return <span className="dice-row" role="img" aria-label={`Rolled ${first} and ${second}`} data-state={isRolling ? 'rolling' : 'settled'}>
-    <Die value={displayedValues[0]} rolling={isRolling} index={0} />
-    <Die value={displayedValues[1]} rolling={isRolling} index={1} />
+    <Die value={visibleValues[0]} rolling={isRolling} index={0} />
+    <Die value={visibleValues[1]} rolling={isRolling} index={1} />
   </span>;
 }

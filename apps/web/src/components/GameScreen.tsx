@@ -70,24 +70,26 @@ function PropertySheet({ state, index, playerId, send, onClose }: { state: GameS
   </div>;
 }
 
-function useDiceAnimation(lastRoll: GameState['lastRoll']) {
+function useDiceAnimation(lastRoll: GameState['lastRoll'], status: string) {
   const [rolling, setRolling] = useState(false);
   const reducedMotion = useReducedMotion();
-  const previous = useRef<{ seeded: boolean; roll: GameState['lastRoll'] }>({ seeded: false, roll: null });
+  const previous = useRef<{ seeded: boolean; online: boolean; roll: GameState['lastRoll'] }>({ seeded: false, online: false, roll: null });
   useEffect(() => {
+    const online = status === 'online';
     const wasNull = previous.current.roll === null;
     const seeded = previous.current.seeded;
-    previous.current = { seeded: true, roll: lastRoll };
-    if (reducedMotion) {
+    const wasOnline = previous.current.online;
+    previous.current = { seeded: true, online, roll: lastRoll };
+    if (!online || reducedMotion || !lastRoll) {
       setRolling(false);
       return undefined;
     }
-    if (!seeded || !wasNull || !lastRoll) return undefined;
+    if (!seeded || !wasOnline || !wasNull) return undefined;
     setRolling(true);
     const timer = window.setTimeout(() => setRolling(false), DICE_ROLL_DURATION_MS);
     return () => window.clearTimeout(timer);
-  }, [lastRoll, reducedMotion]);
-  return rolling;
+  }, [lastRoll, reducedMotion, status]);
+  return status === 'online' && rolling;
 }
 
 function DebtCard({ state, playerId, send, onOpenAssets }: { state: GameState; playerId: string; send: Sender; onOpenAssets: () => void }) {
@@ -182,7 +184,7 @@ export function GameScreen({ state, playerId, status, error, send, clearError, o
   const compact = useCompactLayout();
   const landscapePhone = useLandscapePhone();
   const moneyFeed = useMoneyAnnouncements(state, status);
-  const rolling = useDiceAnimation(state.lastRoll);
+  const rolling = useDiceAnimation(state.lastRoll, status);
   const movement = useMovementAnimation(state);
   const lastCard = state.lastCard ?? null;
   const [clockNow, setClockNow] = useState(Date.now());
